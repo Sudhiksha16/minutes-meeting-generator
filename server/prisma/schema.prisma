@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  category  String
+  createdAt DateTime @default(now())
+
+  users     User[]
+  meetings  Meeting[]
+  settings  OrgSettings?
+  auditLogs AuditLog[]
+}
+
+model User {
+  id           String     @id @default(uuid())
+  orgId        String
+  name         String
+  email        String
+  passwordHash String
+  role         Role
+  status       UserStatus @default(PENDING)
+  createdAt    DateTime   @default(now())
+
+  organization    Organization @relation(fields: [orgId], references: [id])
+  meetingsCreated Meeting[]    @relation("CreatedMeetings")
+  participants    MeetingParticipant[]
+}
+
+model Meeting {
+  id          String     @id @default(uuid())
+  orgId       String
+  createdBy   String
+  title       String
+  description String?
+  visibility  Visibility
+  dateTime    DateTime
+  createdAt   DateTime   @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  creator      User         @relation("CreatedMeetings", fields: [createdBy], references: [id])
+
+  participants MeetingParticipant[]
+  minutes      MeetingMinutes?
+  notes String? @db.Text
+
+}
+
+model MeetingParticipant {
+  id        String @id @default(uuid())
+  meetingId String
+  userId    String
+
+  meeting Meeting @relation(fields: [meetingId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([meetingId, userId])
+}
+
+model OrgSettings {
+  id                     String  @id @default(uuid())
+  orgId                  String  @unique
+  adminOverrideEnabled   Boolean @default(false)
+  overrideReasonRequired Boolean @default(true)
+
+  organization Organization @relation(fields: [orgId], references: [id])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  orgId       String
+  actorUserId String
+  meetingId   String?
+  actionType  String
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id])
+}
+
+model MeetingMinutes {
+  id                String   @id @default(uuid())
+  meetingId         String   @unique
+  orgId             String
+  generatedBy       String
+
+  mom               String   @db.Text
+  decisions         Json
+  actionItems       Json
+  tags              String[]
+  isSensitive       Boolean
+  sensitivityReason String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  meeting           Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([generatedBy])
+}
+
+enum Role {
+  ADMIN
+  HEAD
+  MANAGER
+  EMPLOYEE
+  STUDENT
+}
+
+enum Visibility {
+  PUBLIC_ORG
+  PRIVATE
+}
+
+enum UserStatus {
+  ACTIVE
+  PENDING
+  REJECTED
+}
