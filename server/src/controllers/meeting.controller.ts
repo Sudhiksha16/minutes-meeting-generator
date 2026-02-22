@@ -10,6 +10,34 @@ export async function createMeeting(req: any, res: any) {
 
     const orgId = req.user.orgId;
     const userId = req.user.userId;
+    const uniqueParticipantIds = Array.from(
+      new Set(
+        (Array.isArray(participantIds) ? participantIds : [])
+          .filter((id: unknown) => typeof id === "string" && id.trim())
+          .map((id: string) => id.trim())
+      )
+    );
+
+    if (visibility === "PRIVATE" && uniqueParticipantIds.length === 0) {
+      return res.status(400).json({ message: "Private meeting requires at least one member" });
+    }
+
+    if (visibility === "PRIVATE") {
+      const validUsers = await prisma.user.findMany({
+        where: {
+          orgId,
+          status: "ACTIVE",
+          id: { in: uniqueParticipantIds },
+        },
+        select: { id: true },
+      });
+
+      const validSet = new Set(validUsers.map((u) => u.id));
+      const invalidIds = uniqueParticipantIds.filter((id) => !validSet.has(id));
+      if (invalidIds.length > 0) {
+        return res.status(400).json({ message: "Some selected members are invalid for this organization" });
+      }
+    }
 
     const meeting = await prisma.meeting.create({
       data: {
@@ -26,14 +54,20 @@ export async function createMeeting(req: any, res: any) {
         participants:
           visibility === "PRIVATE"
             ? {
-                create: (participantIds ?? []).map((id: string) => ({
+                create: uniqueParticipantIds.map((id: string) => ({
                   userId: id,
                 })),
               }
             : undefined,
       },
       include: {
-        participants: true,
+        participants: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, role: true },
+            },
+          },
+        },
       },
     });
 
@@ -64,7 +98,13 @@ export async function listMeetings(req: any, res: any) {
       },
       orderBy: { createdAt: "desc" },
       include: {
-        participants: true,
+        participants: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, role: true },
+            },
+          },
+        },
       },
     });
 
@@ -114,7 +154,15 @@ export async function getMeeting(req: any, res: any) {
 
     const meeting = await prisma.meeting.findFirst({
       where: { id: meetingId, orgId },
-      include: { participants: true },
+      include: {
+        participants: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, role: true },
+            },
+          },
+        },
+      },
     });
 
     if (!meeting) return res.status(404).json({ message: "Meeting not found" });
@@ -160,7 +208,15 @@ export async function updateMeeting(req: any, res: any) {
         dateTime: dateTime ? new Date(dateTime) : undefined,
         notes: typeof notes === "string" ? notes : undefined,
       },
-      include: { participants: true },
+      include: {
+        participants: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true, role: true },
+            },
+          },
+        },
+      },
     });
 
     return res.json({ message: "Meeting updated", meeting: updated });

@@ -61,6 +61,34 @@ type DecisionRow = {
   customText?: string;
 };
 
+type MeetingSuggestResponse = {
+  topics?: string[];
+  descriptions?: string[];
+  agendas?: string[];
+  discussionPoints?: string[];
+  suggestedTopic?: string;
+  suggestedDescription?: string;
+  suggestedAgenda?: string;
+  suggestedDiscussionPoints?: string;
+};
+
+type ApiError = {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+  message?: string;
+};
+
+type OrgMember = {
+  id: string;
+  name: string;
+  email: string;
+  role: "ADMIN" | "HEAD" | "MANAGER" | "EMPLOYEE" | "STUDENT";
+  status?: string;
+};
+
 // --------------------
 // SMART “AI-LIKE” LIBRARY (Offline)
 // --------------------
@@ -257,11 +285,15 @@ export default function CreateMeeting() {
   const [topic, setTopic] = useState("");
   const [descriptionMode, setDescriptionMode] = useState<"AUTO" | "CUSTOM">("AUTO");
   const [description, setDescription] = useState("");
+  const [agendaMode, setAgendaMode] = useState<"AUTO" | "CUSTOM">("AUTO");
+  const [discussionMode, setDiscussionMode] = useState<"AUTO" | "CUSTOM">("AUTO");
+  const [aiLoading, setAiLoading] = useState(false);
 
   // ✅ Topic suggestions list
-  const topicSuggestions = useMemo(() => {
+  const defaultTopicSuggestions = useMemo(() => {
     return MEETING_LIBRARY[meetingType]?.topics ?? MEETING_LIBRARY.General.topics;
   }, [meetingType]);
+  const [topicSuggestions, setTopicSuggestions] = useState<string[]>([]);
 
   // date + time
   const [date, setDate] = useState<Date | undefined>(new Date());
@@ -276,7 +308,9 @@ export default function CreateMeeting() {
 
   // participants
   const [participantCount, setParticipantCount] = useState("2");
-  const [participantNames, setParticipantNames] = useState<string[]>(["", ""]);
+  const [participantUserIds, setParticipantUserIds] = useState<string[]>(["", ""]);
+  const [orgMembers, setOrgMembers] = useState<OrgMember[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
 
   // sections
   const [agenda, setAgenda] = useState("");
@@ -312,8 +346,85 @@ export default function CreateMeeting() {
   }, [locationChoice, locationCustom]);
 
   const participantsFinal = useMemo(() => {
-    return participantNames.map((x) => x.trim()).filter(Boolean);
-  }, [participantNames]);
+    return participantUserIds
+      .map((id) => orgMembers.find((m) => m.id === id)?.name || "")
+      .map((x) => x.trim())
+      .filter(Boolean);
+  }, [participantUserIds, orgMembers]);
+
+  const participantIdsFinal = useMemo(() => {
+    return Array.from(new Set(participantUserIds.filter(Boolean)));
+  }, [participantUserIds]);
+
+  async function generateFromTitle(titleInput: string) {
+    const t = titleInput.trim();
+    if (!t) return;
+
+    setAiLoading(true);
+    try {
+      const res = await api.post<MeetingSuggestResponse>("/ai/meeting-suggest", { title: t });
+      const data = res.data ?? {};
+
+      const aiTopics = (data.topics ?? []).map((x) => x.trim()).filter(Boolean);
+      const aiDescriptions = (data.descriptions ?? []).map((x) => x.trim()).filter(Boolean);
+      const aiAgendas = (data.agendas ?? []).map((x) => x.trim()).filter(Boolean);
+      const aiDiscussionPoints = (data.discussionPoints ?? []).map((x) => x.trim()).filter(Boolean);
+
+      if (aiTopics.length > 0) setTopicSuggestions(aiTopics);
+
+      if (topicMode === "AUTO") {
+        setTopic(data.suggestedTopic?.trim() || aiTopics[0] || "General discussion");
+      }
+
+      if (descriptionMode === "AUTO") {
+        setDescription(
+          data.suggestedDescription?.trim() ||
+            aiDescriptions[0] ||
+            MEETING_LIBRARY[pickMeetingType(t)].descByTopic(topic || "General discussion", t)
+        );
+      }
+
+      if (agendaMode === "AUTO") {
+        setAgenda(data.suggestedAgenda?.trim() || aiAgendas.join("\n"));
+      }
+
+      if (discussionMode === "AUTO") {
+        setDiscussionPoints(data.suggestedDiscussionPoints?.trim() || aiDiscussionPoints.join("\n"));
+      }
+    } catch (e: unknown) {
+      const err = e as ApiError;
+      setMsg(err?.response?.data?.message ?? "AI suggestion failed. Using smart fallback.");
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (topicSuggestions.length === 0) {
+      setTopicSuggestions(defaultTopicSuggestions);
+    }
+  }, [defaultTopicSuggestions, topicSuggestions.length]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      setLoadingMembers(true);
+      try {
+        const res = await api.get<{ users: OrgMember[] }>("/orgs/my/members");
+        if (!mounted) return;
+        setOrgMembers((res.data?.users ?? []).filter((u) => u.status !== "REJECTED"));
+      } catch {
+        if (!mounted) return;
+        setOrgMembers([]);
+      } finally {
+        if (mounted) setLoadingMembers(false);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   // ✅ SMART auto generate meetingType + topic + description
   useEffect(() => {
@@ -355,8 +466,41 @@ export default function CreateMeeting() {
     setDescription(MEETING_LIBRARY[meetingType].descByTopic(topic, t));
   }, [topic, meetingType, descriptionMode, title]);
 
+  useEffect(() => {
+    const t = title.trim();
+    if (!t) return;
+
+    const handle = setTimeout(() => {
+      if (agendaMode === "AUTO" && !agenda.trim()) {
+        setAgenda(
+          [
+            `Introduction and objective for ${t}`,
+            `Main discussion on ${MEETING_LIBRARY[pickMeetingType(t)].topics[0] ?? "key updates"}`,
+            "Risks, blockers, and decisions",
+            "Action items with owners and due dates",
+          ].join("\n")
+        );
+      }
+
+      if (discussionMode === "AUTO" && !discussionPoints.trim()) {
+        setDiscussionPoints(
+          [
+            `Team reviewed progress related to ${t}.`,
+            "Participants discussed blockers and possible resolutions.",
+            "Final decisions were aligned with next steps and ownership.",
+          ].join("\n")
+        );
+      }
+
+      generateFromTitle(t);
+    }, 450);
+
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, topicMode, descriptionMode, agendaMode, discussionMode]);
+
   function syncParticipantFields(newCount: number) {
-    setParticipantNames((prev) => {
+    setParticipantUserIds((prev) => {
       const next = [...prev];
       while (next.length < newCount) next.push("");
       while (next.length > newCount) next.pop();
@@ -364,8 +508,8 @@ export default function CreateMeeting() {
     });
   }
 
-  function setParticipantName(idx: number, value: string) {
-    setParticipantNames((prev) => prev.map((p, i) => (i === idx ? value : p)));
+  function setParticipantUserId(idx: number, value: string) {
+    setParticipantUserIds((prev) => prev.map((p, i) => (i === idx ? value : p)));
   }
 
   function addActionRow() {
@@ -400,7 +544,12 @@ export default function CreateMeeting() {
     parts.push(`Meeting Type: ${meetingType || "-"}`);
     parts.push(`Topic: ${topic || "-"}`);
     parts.push(`Location: ${locationFinal || "-"}`);
-    parts.push(`Participants: ${participantsFinal.length ? participantsFinal.join(", ") : "-"}`);
+    const participantsWithRole = participantIdsFinal
+      .map((id) => orgMembers.find((m) => m.id === id))
+      .filter(Boolean)
+      .map((m) => `${m!.name} (${m!.role})`);
+
+    parts.push(`Participants: ${participantsWithRole.length ? participantsWithRole.join(", ") : "-"}`);
 
     if (agenda.trim()) parts.push(`Agenda:\n${agenda.trim()}`);
     if (discussionPoints.trim()) parts.push(`Points Discussed:\n${discussionPoints.trim()}`);
@@ -429,18 +578,23 @@ export default function CreateMeeting() {
     if (actions.length) parts.push(`Action Items:\n${actions.join("\n")}`);
 
     return parts.join("\n\n").trim();
-  }, [meetingType, topic, locationFinal, participantsFinal, agenda, discussionPoints, decisions, actionItems]);
+  }, [meetingType, topic, locationFinal, participantIdsFinal, orgMembers, agenda, discussionPoints, decisions, actionItems]);
 
   async function onCreate() {
     setLoading(true);
     setMsg(null);
 
     try {
+      if (visibility === "PRIVATE" && participantIdsFinal.length === 0) {
+        throw new Error("Select at least one member for private meeting");
+      }
+
       const res = await api.post("/meetings", {
         title: title.trim(),
         description: description.trim(),
         visibility,
         dateTime: isoDateTime,
+        participantIds: visibility === "PRIVATE" ? participantIdsFinal : undefined,
         notes: notesFinal || undefined,
       });
 
@@ -459,11 +613,11 @@ export default function CreateMeeting() {
   minDate.setDate(today.getDate() - 30);
 
   return (
-    <div className="grid place-items-center py-10">
-      <Card className="w-full max-w-5xl">
+    <div className="grid place-items-center px-3 py-8 sm:px-4 sm:py-10">
+      <Card className="w-full max-w-5xl border-white/40 bg-white/75 shadow-lg backdrop-blur-sm">
         <CardHeader>
-          <CardTitle className="text-xl">Create MOM</CardTitle>
-          <p className="text-sm text-muted-foreground">
+          <CardTitle className="text-2xl tracking-tight">Create MOM</CardTitle>
+          <p className="mt-1 text-sm text-muted-foreground">
             Offline smart suggestions (AI-like) + clean MOM notes → Generate minutes + PDF.
           </p>
         </CardHeader>
@@ -479,8 +633,17 @@ export default function CreateMeeting() {
                 placeholder='e.g., "Software Development Plan"'
               />
               {!!title.trim() && (
-                <div className="flex gap-2 pt-1">
+                <div className="flex flex-wrap gap-2 pt-1">
                   <Badge variant="secondary">Auto Type: {meetingType}</Badge>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={aiLoading}
+                    onClick={() => generateFromTitle(title)}
+                  >
+                    {aiLoading ? "Generating..." : "Generate with AI"}
+                  </Button>
                 </div>
               )}
             </div>
@@ -502,10 +665,10 @@ export default function CreateMeeting() {
           {/* Topic + Description */}
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <Label>Topic</Label>
                 <Select value={topicMode} onValueChange={(v) => setTopicMode(v as any)}>
-                  <SelectTrigger className="w-[140px]">
+                  <SelectTrigger className="w-full sm:w-[140px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -550,10 +713,10 @@ export default function CreateMeeting() {
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <Label>Description</Label>
                 <Select value={descriptionMode} onValueChange={(v) => setDescriptionMode(v as any)}>
-                  <SelectTrigger className="w-[140px]">
+                  <SelectTrigger className="w-full sm:w-[140px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -679,9 +842,9 @@ export default function CreateMeeting() {
 
           {/* Participants */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <Label>Participants</Label>
-              <div className="flex items-center gap-2">
+              <div className="flex w-full items-center gap-2 sm:w-auto">
                 <span className="text-sm text-muted-foreground">Count</span>
                 <Select
                   value={participantCount}
@@ -690,7 +853,7 @@ export default function CreateMeeting() {
                     syncParticipantFields(Number(v));
                   }}
                 >
-                  <SelectTrigger className="w-[120px]">
+                  <SelectTrigger className="w-full sm:w-[120px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -704,44 +867,100 @@ export default function CreateMeeting() {
               </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-2">
-              {participantNames.map((p, idx) => (
-                <div key={idx} className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Participant {idx + 1}</Label>
-                  <Input
-                    value={p}
-                    onChange={(e) => setParticipantName(idx, e.target.value)}
-                    placeholder="Name / email"
-                  />
-                </div>
-              ))}
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Member</TableHead>
+                    <TableHead>Role</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {participantUserIds.map((selectedId, idx) => {
+                    const selected = orgMembers.find((m) => m.id === selectedId);
+                    return (
+                      <TableRow key={idx}>
+                        <TableCell>
+                          <Select
+                            value={selectedId}
+                            onValueChange={(v) => setParticipantUserId(idx, v)}
+                            disabled={loadingMembers}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder={loadingMembers ? "Loading members..." : "Select member"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {orgMembers.map((m) => (
+                                <SelectItem key={m.id} value={m.id}>
+                                  {m.name} ({m.email})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          <Input readOnly value={selected?.role ?? "-"} />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </div>
 
             <div className="flex flex-wrap gap-2">
-              {participantsFinal.map((p) => (
-                <Badge key={p} variant="secondary">
-                  {p}
+              {participantIdsFinal.map((id) => {
+                const member = orgMembers.find((m) => m.id === id);
+                const label = member ? `${member.name} (${member.role})` : id;
+                return (
+                <Badge key={id} variant="secondary">
+                  {label}
                 </Badge>
-              ))}
+                );
+              })}
             </div>
           </div>
 
           {/* Agenda / Points */}
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label>Agenda</Label>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <Label>Agenda</Label>
+                <Select value={agendaMode} onValueChange={(v) => setAgendaMode(v as any)}>
+                  <SelectTrigger className="w-full sm:w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="AUTO">Auto</SelectItem>
+                    <SelectItem value="CUSTOM">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <Textarea
                 value={agenda}
                 onChange={(e) => setAgenda(e.target.value)}
+                readOnly={agendaMode === "AUTO"}
                 className="min-h-[140px]"
                 placeholder="Bullet points / lines..."
               />
             </div>
             <div className="space-y-2">
-              <Label>Points Discussed</Label>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <Label>Points Discussed</Label>
+                <Select value={discussionMode} onValueChange={(v) => setDiscussionMode(v as any)}>
+                  <SelectTrigger className="w-full sm:w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="AUTO">Auto</SelectItem>
+                    <SelectItem value="CUSTOM">Custom</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <Textarea
                 value={discussionPoints}
                 onChange={(e) => setDiscussionPoints(e.target.value)}
+                readOnly={discussionMode === "AUTO"}
                 className="min-h-[140px]"
                 placeholder="What was discussed..."
               />
@@ -759,7 +978,7 @@ export default function CreateMeeting() {
 
             <div className="space-y-3">
               {decisions.map((row, i) => (
-                <div key={i} className="grid gap-2 md:grid-cols-[220px_1fr_60px] items-start">
+                <div key={i} className="grid items-start gap-2 lg:grid-cols-[220px_1fr_auto]">
                   <Select
                     value={row.choice}
                     onValueChange={(v) =>
@@ -793,6 +1012,7 @@ export default function CreateMeeting() {
                   <Button
                     type="button"
                     variant="ghost"
+                    className="justify-self-start lg:justify-self-auto"
                     onClick={() => removeDecisionRow(i)}
                     disabled={decisions.length === 1}
                   >

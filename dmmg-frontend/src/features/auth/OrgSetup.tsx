@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { jwtDecode } from "jwt-decode";
+import { saveSessionDetails } from "@/lib/session";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -96,7 +97,12 @@ export default function OrgSetup() {
       const token = res.data?.accessToken;
       if (!token) throw new Error("accessToken missing in response");
 
-      localStorage.setItem("token", token);
+      saveSessionDetails({
+        token,
+        userName: res.data?.user?.name ?? null,
+        userRole: res.data?.user?.role ?? null,
+        orgName: res.data?.org?.name ?? null,
+      });
 
       // ✅ get orgId from JWT (NO backend changes needed)
       const oid = decodeOrgId(token);
@@ -158,11 +164,11 @@ export default function OrgSetup() {
   }
 
   return (
-    <div className="grid place-items-center py-12">
-      <Card className="w-full max-w-xl">
+    <div className="grid place-items-center px-3 py-8 sm:px-4 sm:py-12">
+      <Card className="w-full max-w-xl border-white/30 bg-background/90 shadow-xl backdrop-blur">
         <CardHeader>
-          <CardTitle className="text-xl">Organization Setup</CardTitle>
-          <p className="text-sm text-muted-foreground">
+          <CardTitle className="text-2xl tracking-tight">Organization Setup</CardTitle>
+          <p className="mt-1 text-sm text-muted-foreground">
             Create a new organization or join an existing one.
           </p>
         </CardHeader>
@@ -176,7 +182,7 @@ export default function OrgSetup() {
 
             {/* CREATE */}
             <TabsContent value="create" className="space-y-4 pt-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Org Name</Label>
                   <Input
@@ -215,7 +221,7 @@ export default function OrgSetup() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Admin Name</Label>
                   <Input value={adminName} onChange={(e) => setAdminName(e.target.value)} />
@@ -246,7 +252,7 @@ export default function OrgSetup() {
               {createdOrgId && (
                 <div className="rounded-md border p-3 space-y-2">
                   <div className="text-sm font-medium">Your Org ID</div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <Input readOnly value={createdOrgId} />
                     <Button variant="outline" onClick={() => copy(createdOrgId)}>
                       Copy
@@ -276,7 +282,7 @@ export default function OrgSetup() {
 
               {/* ✅ OPTIONAL: browse orgs */}
               <div className="rounded-md border p-3 space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="text-sm font-medium">Browse Orgs (optional)</div>
                   <Button variant="outline" onClick={loadOrgs} disabled={loadingOrgs}>
                     {loadingOrgs ? "Loading..." : "Load Orgs"}
@@ -287,7 +293,7 @@ export default function OrgSetup() {
                     {orgs.map((o) => (
                       <div
                         key={o.id}
-                        className="flex items-center justify-between rounded-md bg-muted/30 p-2"
+                        className="flex flex-col gap-2 rounded-md bg-muted/30 p-2 sm:flex-row sm:items-center sm:justify-between"
                       >
                         <div className="text-sm">
                           <div className="font-medium">{o.name}</div>
@@ -312,7 +318,7 @@ export default function OrgSetup() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Your Name</Label>
                   <Input value={name} onChange={(e) => setName(e.target.value)} />

@@ -8,6 +8,7 @@ import { jwtDecode } from "jwt-decode";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 
 type Meeting = {
   id: string;
@@ -46,7 +47,6 @@ export default function MeetingsList() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
-  // ✅ Current user id from JWT
   const token = localStorage.getItem("token");
   const currentUserId = useMemo(() => {
     if (!token) return null;
@@ -84,121 +84,122 @@ export default function MeetingsList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Meetings</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-3xl font-semibold tracking-tight">Meetings</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
             Click a meeting to view details, minutes, and PDF.
           </p>
         </div>
 
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => refetch()}>
-            Refresh
+        <div className="flex w-full gap-2 sm:w-auto">
+          <Button className="rounded-xl" onClick={() => nav("/meetings/new")}>
+            Create Meeting
           </Button>
-          <Button onClick={() => nav("/meetings/new")}>Create Meeting</Button>
         </div>
       </div>
 
-      {msg && <div className="text-sm">{msg}</div>}
+      {msg && (
+        <div className="text-sm rounded-xl border bg-background/60 px-4 py-3">
+          {msg}
+        </div>
+      )}
 
-      <Card>
-        <CardHeader>
+      <Card className="rounded-2xl border-white/40 bg-white/75 shadow-lg backdrop-blur-sm">
+        <CardHeader className="pb-3">
           <CardTitle className="text-base">All Meetings</CardTitle>
         </CardHeader>
 
-        <CardContent>
-          {isLoading && (
-            <div className="text-sm text-muted-foreground">Loading…</div>
-          )}
+        <CardContent className="pt-0">
+          {isLoading && <div className="text-sm text-muted-foreground py-6">Loading…</div>}
 
           {isError && (
-            <div className="text-sm text-red-600">
+            <div className="text-sm text-red-600 py-6">
               Failed to load.{" "}
               <span className="text-muted-foreground">
-                {(error as any)?.response?.data?.message ??
-                  (error as any)?.message ??
-                  ""}
+                {(error as any)?.response?.data?.message ?? (error as any)?.message ?? ""}
               </span>
             </div>
           )}
 
-          <div className="divide-y">
-            {meetings.map((m) => {
-              const dbCount = m.participants?.length ?? 0;
-              const participantsCount =
-                dbCount > 0 ? dbCount : countParticipantsFromNotes(m.notes);
+          {!isLoading && !isError && (
+            <div className="overflow-hidden rounded-xl border border-white/40 bg-background/60">
+              {meetings.map((m, idx) => {
+                const dbCount = m.participants?.length ?? 0;
+                const participantsCount = dbCount > 0 ? dbCount : countParticipantsFromNotes(m.notes);
+                const isCreator = !!currentUserId && m.createdBy === currentUserId;
 
-              const isCreator =
-                !!currentUserId && m.createdBy === currentUserId;
+                return (
+                  <div key={m.id}>
+                    <button
+                      onClick={() => nav(`/meetings/${m.id}`)}
+                      className="w-full px-4 py-4 text-left transition hover:bg-white/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="font-medium truncate">{m.title}</div>
+                            <Badge variant="secondary" className="shrink-0">
+                              {m.visibility === "PUBLIC_ORG" ? "Org" : "Private"}
+                            </Badge>
+                          </div>
 
-              return (
-                <button
-                  key={m.id}
-                  onClick={() => nav(`/meetings/${m.id}`)}
-                  className="w-full text-left py-4 px-2 rounded-md transition hover:bg-muted/40"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="font-medium">{m.title}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {m.description ?? "No description"}
+                          <div className="text-sm text-muted-foreground line-clamp-1">
+                            {m.description ?? "No description"}
+                          </div>
+
+                          <div className="text-xs text-muted-foreground break-words">
+                            📅 {dayjs(m.dateTime).format("DD MMM YYYY, hh:mm A")} • 👥 {participantsCount}
+                          </div>
+                        </div>
+
+                        {isCreator && (
+                          <div className="flex w-full flex-wrap items-center justify-end gap-2 shrink-0 sm:w-auto">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="rounded-xl"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                nav(`/meetings/${m.id}/edit`);
+                              }}
+                            >
+                              Edit
+                            </Button>
+
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              className="rounded-xl"
+                              disabled={deletingId === m.id}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onDelete(m.id);
+                              }}
+                            >
+                              {deletingId === m.id ? "Deleting..." : "Delete"}
+                            </Button>
+                          </div>
+                        )}
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        📅 {dayjs(m.dateTime).format("DD MMM YYYY, hh:mm A")} • 👥{" "}
-                        {participantsCount}
-                      </div>
-                    </div>
+                    </button>
 
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary">
-                        {m.visibility === "PUBLIC_ORG" ? "Org" : "Private"}
-                      </Badge>
-
-                      {/* ✅ Only creator sees Edit/Delete */}
-                      {isCreator && (
-                        <>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              // For now: edit = open details, use Edit Notes button there
-                              nav(`/meetings/${m.id}/edit`);
-                            }}
-                          >
-                            Edit
-                          </Button>
-
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            disabled={deletingId === m.id}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              onDelete(m.id);
-                            }}
-                          >
-                            {deletingId === m.id ? "Deleting..." : "Delete"}
-                          </Button>
-                        </>
-                      )}
-                    </div>
+                    {idx !== meetings.length - 1 && <Separator />}
                   </div>
-                </button>
-              );
-            })}
+                );
+              })}
 
-            {!isLoading && meetings.length === 0 && (
-              <div className="py-8 text-sm text-muted-foreground">
-                No meetings yet.
-              </div>
-            )}
-          </div>
+              {!isLoading && meetings.length === 0 && (
+                <div className="py-10 text-center">
+                  <div className="text-sm text-muted-foreground">No meetings yet.</div>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

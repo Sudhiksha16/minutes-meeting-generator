@@ -126,7 +126,45 @@ export async function joinOrg(req: any, res: any) {
   }
 }
 
-// 3) POST /auth/login
+// 3) POST /auth/forgot-password
+export async function forgotPassword(req: any, res: any) {
+  try {
+    const { email, newPassword } = req.body;
+
+    if (!email || !newPassword) {
+      return res.status(400).json({ message: "Email and newPassword are required" });
+    }
+
+    if (!isValidPassword(newPassword)) {
+      return res.status(400).json({
+        message:
+          "Password must be at least 8 characters and include uppercase, lowercase, number, and special character.",
+      });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const users = await prisma.user.findMany({
+      where: { email: cleanEmail },
+      select: { id: true },
+    });
+
+    if (users.length === 0) {
+      return res.status(404).json({ message: "Account not found for this email" });
+    }
+
+    const passwordHash = await bcrypt.hash(String(newPassword), 10);
+    await prisma.user.updateMany({
+      where: { email: cleanEmail },
+      data: { passwordHash },
+    });
+
+    return res.json({ message: "Password reset successful. Please login with your new password." });
+  } catch (err: any) {
+    return res.status(500).json({ message: err.message || "Server error" });
+  }
+}
+
+// 4) POST /auth/login
 export async function login(req: any, res: any) {
   try {
     const { email, password } = req.body;

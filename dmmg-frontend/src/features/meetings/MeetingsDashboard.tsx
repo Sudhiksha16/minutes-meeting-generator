@@ -115,9 +115,7 @@ export default function MeetingsDashboard() {
             </Button>
           )}
 
-          <Button variant="outline" onClick={() => refetch()}>
-            Refresh
-          </Button>
+          
         </div>
       </div>
 

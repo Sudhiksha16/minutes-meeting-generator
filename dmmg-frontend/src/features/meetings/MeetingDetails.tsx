@@ -169,10 +169,13 @@ export default function MeetingDetails() {
 
       const blob = new Blob([res.data], { type: "application/pdf" });
       const url = window.URL.createObjectURL(blob);
+      const contentDisposition = res.headers?.["content-disposition"] as string | undefined;
+      const filenameMatch = contentDisposition?.match(/filename="?([^"]+)"?/i);
+      const serverFilename = filenameMatch?.[1] ?? `meeting-${meetingId}-minutes.pdf`;
 
       const a = document.createElement("a");
       a.href = url;
-      a.download = `meeting-${meetingId}-minutes.pdf`;
+      a.download = serverFilename;
       a.click();
 
       window.URL.revokeObjectURL(url);
@@ -186,15 +189,15 @@ export default function MeetingDetails() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Meeting Details</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-3xl font-semibold tracking-tight">Meeting Details</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Raw Notes (manual) → Generate Minutes (AI) → Download PDF
         </p>
       </div>
 
-      <Card>
+      <Card className="border-white/40 bg-white/75 shadow-lg backdrop-blur-sm">
         <CardHeader className="space-y-2">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <CardTitle className="text-base">
                 {meeting
@@ -214,7 +217,7 @@ export default function MeetingDetails() {
             </div>
 
             {meeting && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {canEditNotes && (
                   <Button
                     variant="outline"
@@ -252,11 +255,11 @@ export default function MeetingDetails() {
         <CardContent className="space-y-4">
           <Separator />
 
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="font-medium">Raw Notes (Manual)</div>
 
             {canEditNotes ? (
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {!editMode ? (
                   <Button variant="outline" onClick={() => setEditMode(true)}>
                     Edit Notes

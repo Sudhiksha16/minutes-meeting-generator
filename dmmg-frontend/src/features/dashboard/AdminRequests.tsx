@@ -94,10 +94,10 @@ export default function AdminRequests() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold">Join Requests</h2>
-          <p className="text-sm text-muted-foreground">
+          <h2 className="text-3xl font-semibold tracking-tight">Join Requests</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             Approve or reject users who requested to join your org.
           </p>
         </div>
@@ -109,7 +109,7 @@ export default function AdminRequests() {
 
       {msg && <div className="text-sm text-red-500">{msg}</div>}
 
-      <Card>
+      <Card className="border-white/40 bg-white/75 shadow-lg backdrop-blur-sm">
         <CardHeader>
           <CardTitle className="text-base">Pending Users</CardTitle>
         </CardHeader>
@@ -135,7 +135,7 @@ export default function AdminRequests() {
                 {pendingUsers.map((u) => (
                   <TableRow key={u.id}>
                     <TableCell className="font-medium">{u.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                    <TableCell className="break-all text-muted-foreground">{u.email}</TableCell>
                     <TableCell>
                       <Badge variant="secondary">{u.role}</Badge>
                     </TableCell>
@@ -143,7 +143,7 @@ export default function AdminRequests() {
                       {new Date(u.createdAt).toLocaleString()}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="inline-flex gap-2">
+                      <div className="inline-flex flex-wrap justify-end gap-2">
                         <Button size="sm" onClick={() => approve(u.id)}>
                           Approve
                         </Button>

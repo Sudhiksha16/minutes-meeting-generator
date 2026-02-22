@@ -4,6 +4,7 @@ import { requireAdmin } from "../middleware/requireAdmin";
 import {
   listPublicOrgs,
   joinOrg,
+  getMyOrgMembers,
   getPendingMembers,
   approveMember,
   rejectMember,
@@ -16,6 +17,7 @@ router.get("/public", listPublicOrgs);
 
 // join org
 router.post("/:orgId/join", requireAuth, joinOrg);
+router.get("/my/members", requireAuth, getMyOrgMembers);
 
 // admin approval routes
 router.get("/:orgId/pending", requireAuth, requireAdmin, getPendingMembers);

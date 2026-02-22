@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import AppShell from "../components/layout/AppShell";
 
 import Login from "../features/auth/Login";
+import ForgotPassword from "../features/auth/ForgotPassword";
 import OrgSetup from "../features/auth/OrgSetup";
 import DashboardHome from "../features/dashboard/DashboardHome";
 
@@ -22,6 +23,7 @@ export const router = createBrowserRouter([
     element: <AppShell />,
     children: [
       { path: "/", element: <Login /> },
+      { path: "/auth/forgot-password", element: <ForgotPassword /> },
       { path: "/auth/org", element: <OrgSetup /> },
 
       {

@@ -204,3 +204,30 @@ export async function rejectMember(req: any, res: any) {
     return res.status(500).json({ message: err.message || "Server error" });
   }
 }
+
+/**
+ * GET /orgs/my/members
+ * Any authenticated user can see ACTIVE members in their own org.
+ */
+export async function getMyOrgMembers(req: any, res: any) {
+  try {
+    const orgId: string | undefined = req.user?.orgId;
+    if (!orgId) return res.status(400).json({ message: "orgId missing in token" });
+
+    const users = await prisma.user.findMany({
+      where: { orgId, status: UserStatus.ACTIVE },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        status: true,
+      },
+      orderBy: [{ role: "asc" }, { name: "asc" }],
+    });
+
+    return res.json({ users });
+  } catch (err: any) {
+    return res.status(500).json({ message: err.message || "Server error" });
+  }
+}
