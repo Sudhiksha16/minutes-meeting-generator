@@ -12,14 +12,15 @@ import MeetingDetails from "../features/meetings/MeetingDetails";
 import EditMeeting from "../features/meetings/EditMeeting"; // ✅ ADD
 import AdminRequests from "@/features/dashboard/AdminRequests";
 import RequireAdmin from "@/features/auth/RequireAdmin";
+import { getSessionToken } from "@/lib/session";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
-  const token = localStorage.getItem("token");
+  const token = getSessionToken();
   return token ? <>{children}</> : <Navigate to="/" replace />;
 }
 
 function PublicOnly({ children }: { children: React.ReactNode }) {
-  const token = localStorage.getItem("token");
+  const token = getSessionToken();
   return token ? <Navigate to="/dashboard" replace /> : <>{children}</>;
 }
 
