@@ -35,6 +35,7 @@ const LOCATION_OPTIONS = [
   "Online - Zoom",
   "Online - MS Teams",
   "Offline - Classroom",
+  "Offline - Office/Headquarters",
   "Offline - Lab",
   "Hybrid",
   "Custom",
@@ -88,6 +89,8 @@ type OrgMember = {
   role: string;
   status?: string;
 };
+
+type FieldMode = "AUTO" | "CUSTOM";
 
 // --------------------
 // SMART “AI-LIKE” LIBRARY (Offline)
@@ -281,12 +284,12 @@ export default function CreateMeeting() {
   const [meetingType, setMeetingType] = useState<MeetingTypeKey>("General");
 
   // ✅ Topic & Description (auto/custom)
-  const [topicMode, setTopicMode] = useState<"AUTO" | "CUSTOM">("AUTO");
+  const [topicMode, setTopicMode] = useState<FieldMode>("AUTO");
   const [topic, setTopic] = useState("");
-  const [descriptionMode, setDescriptionMode] = useState<"AUTO" | "CUSTOM">("AUTO");
+  const [descriptionMode, setDescriptionMode] = useState<FieldMode>("AUTO");
   const [description, setDescription] = useState("");
-  const [agendaMode, setAgendaMode] = useState<"AUTO" | "CUSTOM">("AUTO");
-  const [discussionMode, setDiscussionMode] = useState<"AUTO" | "CUSTOM">("AUTO");
+  const [agendaMode, setAgendaMode] = useState<FieldMode>("CUSTOM");
+  const [discussionMode, setDiscussionMode] = useState<FieldMode>("CUSTOM");
   const [aiLoading, setAiLoading] = useState(false);
 
   // ✅ Topic suggestions list
@@ -367,9 +370,6 @@ export default function CreateMeeting() {
 
       const aiTopics = (data.topics ?? []).map((x) => x.trim()).filter(Boolean);
       const aiDescriptions = (data.descriptions ?? []).map((x) => x.trim()).filter(Boolean);
-      const aiAgendas = (data.agendas ?? []).map((x) => x.trim()).filter(Boolean);
-      const aiDiscussionPoints = (data.discussionPoints ?? []).map((x) => x.trim()).filter(Boolean);
-
       if (aiTopics.length > 0) setTopicSuggestions(aiTopics);
 
       if (topicMode === "AUTO") {
@@ -384,13 +384,6 @@ export default function CreateMeeting() {
         );
       }
 
-      if (agendaMode === "AUTO") {
-        setAgenda(data.suggestedAgenda?.trim() || aiAgendas.join("\n"));
-      }
-
-      if (discussionMode === "AUTO") {
-        setDiscussionPoints(data.suggestedDiscussionPoints?.trim() || aiDiscussionPoints.join("\n"));
-      }
     } catch (e: unknown) {
       const err = e as ApiError;
       setMsg(err?.response?.data?.message ?? "AI suggestion failed. Using smart fallback.");
@@ -469,35 +462,54 @@ export default function CreateMeeting() {
   useEffect(() => {
     const t = title.trim();
     if (!t) return;
+    if (topicMode !== "AUTO" && descriptionMode !== "AUTO") return;
 
     const handle = setTimeout(() => {
-      if (agendaMode === "AUTO" && !agenda.trim()) {
-        setAgenda(
-          [
-            `Introduction and objective for ${t}`,
-            `Main discussion on ${MEETING_LIBRARY[pickMeetingType(t)].topics[0] ?? "key updates"}`,
-            "Risks, blockers, and decisions",
-            "Action items with owners and due dates",
-          ].join("\n")
-        );
-      }
-
-      if (discussionMode === "AUTO" && !discussionPoints.trim()) {
-        setDiscussionPoints(
-          [
-            `Team reviewed progress related to ${t}.`,
-            "Participants discussed blockers and possible resolutions.",
-            "Final decisions were aligned with next steps and ownership.",
-          ].join("\n")
-        );
-      }
-
       generateFromTitle(t);
     }, 450);
 
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, topicMode, descriptionMode, agendaMode, discussionMode]);
+  }, [title, topicMode, descriptionMode]);
+
+  useEffect(() => {
+    const topicText = topic.trim();
+    const descriptionText = description.trim();
+    if (!topicText && !descriptionText) return;
+
+    const handle = setTimeout(() => {
+      if (agendaMode === "AUTO") {
+        const topicValue = topicText || "General discussion";
+        const descriptionValue = descriptionText || "No description";
+        setAgenda(
+          [
+            `Topic: ${topicValue}`,
+            `Description: ${descriptionValue}`,
+            "",
+            "Agenda:",
+            `- Overview and objective of ${topicValue}`,
+            "- Core discussion points",
+            "- Decisions and action plan",
+          ].join("\n")
+        );
+      }
+
+      if (discussionMode === "AUTO") {
+        const topicValue = topicText || "the discussed topic";
+        const descriptionValue = descriptionText || "the meeting description";
+        setDiscussionPoints(
+          [
+            `Discussion started on ${topicValue}.`,
+            `Context considered: ${descriptionValue}.`,
+            "Key inputs from participants were captured.",
+            "Final clarifications and next steps were aligned.",
+          ].join("\n")
+        );
+      }
+    }, 300);
+
+    return () => clearTimeout(handle);
+  }, [topic, description, agendaMode, discussionMode]);
 
   function syncParticipantFields(newCount: number) {
     setParticipantUserIds((prev) => {
@@ -957,6 +969,7 @@ export default function CreateMeeting() {
                   </SelectContent>
                 </Select>
               </div>
+
               <Textarea
                 value={discussionPoints}
                 onChange={(e) => setDiscussionPoints(e.target.value)}
