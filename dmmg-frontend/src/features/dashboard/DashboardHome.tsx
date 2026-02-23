@@ -50,7 +50,7 @@ export default function DashboardHome() {
         if (role) setDisplayRole(role);
         const orgId = decoded.orgId;
 
-        const admin = role === "ADMIN" || role === "HEAD" || role === "CEO";
+        const admin = role === "ADMIN";
         setIsAdmin(admin);
 
         if (admin && orgId) {

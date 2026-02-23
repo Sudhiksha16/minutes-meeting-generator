@@ -67,11 +67,11 @@ export default function MeetingDetails() {
   const nav = useNavigate();
 
   const token = localStorage.getItem("token");
-  const currentUserId = useMemo(() => {
+  const currentUser = useMemo(() => {
     if (!token) return null;
     try {
       const decoded = jwtDecode<TokenPayload>(token);
-      return decoded.userId ?? null;
+      return { userId: decoded.userId ?? null, role: decoded.role ?? "" };
     } catch {
       return null;
     }
@@ -108,7 +108,8 @@ export default function MeetingDetails() {
   }, [meeting?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const canEditNotes =
-    !!meeting && !!currentUserId && meeting.createdBy === currentUserId;
+    !!meeting &&
+    (!!currentUser?.userId && meeting.createdBy === currentUser.userId || currentUser?.role === "ADMIN");
 
   const minutesAvailable = minutesQ.data != null;
   const minutesText = extractMinutesText(minutesQ.data);
@@ -283,7 +284,7 @@ export default function MeetingDetails() {
               </div>
             ) : (
               <div className="text-xs text-muted-foreground">
-                Only the creator can edit notes.
+                Only the creator or admin can edit notes.
               </div>
             )}
           </div>

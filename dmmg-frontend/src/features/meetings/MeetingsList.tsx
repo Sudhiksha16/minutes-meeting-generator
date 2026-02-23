@@ -49,10 +49,11 @@ export default function MeetingsList() {
   const [msg, setMsg] = useState<string | null>(null);
 
   const token = localStorage.getItem("token");
-  const currentUserId = useMemo(() => {
+  const currentUser = useMemo(() => {
     if (!token) return null;
     try {
-      return jwtDecode<TokenPayload>(token).userId ?? null;
+      const decoded = jwtDecode<TokenPayload>(token);
+      return { userId: decoded.userId ?? null, role: decoded.role ?? "" };
     } catch {
       return null;
     }
@@ -128,7 +129,9 @@ export default function MeetingsList() {
               {meetings.map((m, idx) => {
                 const dbCount = m.participants?.length ?? 0;
                 const participantsCount = dbCount > 0 ? dbCount : countParticipantsFromNotes(m.notes);
-                const isCreator = !!currentUserId && m.createdBy === currentUserId;
+                const isCreator = !!currentUser?.userId && m.createdBy === currentUser.userId;
+                const isAdmin = currentUser?.role === "ADMIN";
+                const canEditMeeting = isCreator || isAdmin;
 
                 return (
                   <div key={m.id}>
@@ -161,7 +164,7 @@ export default function MeetingsList() {
                           </div>
                         </div>
 
-                        {isCreator && (
+                        {canEditMeeting && (
                           <div className="flex w-full flex-wrap items-center justify-end gap-2 shrink-0 sm:w-auto">
                             <Button
                               type="button"
@@ -177,20 +180,22 @@ export default function MeetingsList() {
                               Edit
                             </Button>
 
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              size="sm"
-                              className="rounded-xl"
-                              disabled={deletingId === m.id}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                onDelete(m.id);
-                              }}
-                            >
-                              {deletingId === m.id ? "Deleting..." : "Delete"}
-                            </Button>
+                            {isCreator && (
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                className="rounded-xl"
+                                disabled={deletingId === m.id}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  onDelete(m.id);
+                                }}
+                              >
+                                {deletingId === m.id ? "Deleting..." : "Delete"}
+                              </Button>
+                            )}
                           </div>
                         )}
                       </div>

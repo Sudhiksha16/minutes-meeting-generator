@@ -67,7 +67,7 @@ export default function MeetingsDashboard() {
     }
   }, [token]);
 
-  const isAdmin = currentRole === "ADMIN" || currentRole === "HEAD";
+  const isAdmin = currentRole === "ADMIN";
 
   const { data, isLoading, isError, refetch, error } = useQuery({
     queryKey: ["meetings"],

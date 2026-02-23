@@ -85,7 +85,7 @@ type OrgMember = {
   id: string;
   name: string;
   email: string;
-  role: "ADMIN" | "HEAD" | "MANAGER" | "EMPLOYEE" | "STUDENT";
+  role: string;
   status?: string;
 };
 

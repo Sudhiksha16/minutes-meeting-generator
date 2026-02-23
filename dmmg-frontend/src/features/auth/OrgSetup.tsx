@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { jwtDecode } from "jwt-decode";
@@ -38,6 +38,19 @@ const CATEGORY_OPTIONS = [
 ] as const;
 
 type OrgPublic = { id: string; name: string; category?: string | null };
+const ORG_JOIN_ROLE_OPTIONS = ["ADMIN", "CEO", "CHAIRMAN", "HR", "HEAD", "MANAGER", "EMPLOYEE"] as const;
+const EDUCATION_JOIN_ROLE_OPTIONS = ["ADMIN", "FOUNDER", "CORESPONDANT", "FACULTY", "HEAD", "STUDENT"] as const;
+
+function isEducationCategory(category?: string | null) {
+  const value = String(category ?? "").trim().toLowerCase();
+  return (
+    value.includes("education") ||
+    value.includes("school") ||
+    value.includes("college") ||
+    value.includes("university") ||
+    value.includes("institution")
+  );
+}
 
 export default function OrgSetup() {
   const nav = useNavigate();
@@ -63,6 +76,7 @@ export default function OrgSetup() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [joinRole, setJoinRole] = useState<string>("ADMIN");
 
   // ✅ show created org id
   const [createdOrgId, setCreatedOrgId] = useState<string | null>(null);
@@ -128,6 +142,7 @@ export default function OrgSetup() {
         name: name.trim(),
         email: email.trim(),
         password,
+        role: joinRole,
       });
 
       setMsg("Join request submitted ✅ Waiting for admin approval.");
@@ -173,6 +188,23 @@ export default function OrgSetup() {
       return name.includes(q) || category.includes(q) || id.includes(q);
     });
   }, [orgs, orgSearch]);
+
+  const selectedOrgCategory = useMemo(
+    () => orgs.find((o) => o.id === orgId.trim())?.category ?? null,
+    [orgId, orgs]
+  );
+
+  const joinRoleOptions = useMemo(() => {
+    return isEducationCategory(selectedOrgCategory)
+      ? [...EDUCATION_JOIN_ROLE_OPTIONS]
+      : [...ORG_JOIN_ROLE_OPTIONS];
+  }, [selectedOrgCategory]);
+
+  useEffect(() => {
+    if (!joinRoleOptions.includes(joinRole as any)) {
+      setJoinRole(joinRoleOptions[0]);
+    }
+  }, [joinRole, joinRoleOptions]);
 
   async function copy(text: string) {
     try {
@@ -361,6 +393,27 @@ export default function OrgSetup() {
                   <Label>Email</Label>
                   <Input value={email} onChange={(e) => setEmail(e.target.value)} />
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Your Role</Label>
+                <Select value={joinRole} onValueChange={(v) => setJoinRole(v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select your role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {joinRoleOptions.map((role) => (
+                      <SelectItem key={role} value={role}>
+                        {role}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {isEducationCategory(selectedOrgCategory)
+                    ? "Education roles shown based on selected organization."
+                    : "Organization roles shown based on selected organization."}
+                </p>
               </div>
 
               <div className="space-y-2">

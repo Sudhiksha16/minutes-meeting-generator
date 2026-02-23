@@ -15,7 +15,7 @@ export default function RequireAdmin({ children }: { children: React.ReactNode }
     const role = decoded.role;
 
     // ✅ your schema roles
-    const isAdmin = role === "ADMIN" || role === "HEAD"; // add MANAGER if needed
+    const isAdmin = role === "ADMIN";
     if (!isAdmin) return <Navigate to="/dashboard" replace />;
 
     return <>{children}</>;
