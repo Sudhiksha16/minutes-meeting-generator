@@ -6,6 +6,10 @@ export const SESSION_KEYS = {
   orgName: "session_org_name",
 } as const;
 
+export function getSessionToken() {
+  return sessionStorage.getItem(SESSION_KEYS.token);
+}
+
 export function saveSessionDetails(input: {
   token: string;
   userName?: string | null;
@@ -13,7 +17,8 @@ export function saveSessionDetails(input: {
   userRole?: string | null;
   orgName?: string | null;
 }) {
-  localStorage.setItem(SESSION_KEYS.token, input.token);
+  sessionStorage.setItem(SESSION_KEYS.token, input.token);
+  localStorage.removeItem(SESSION_KEYS.token);
 
   if (input.userName?.trim()) {
     localStorage.setItem(SESSION_KEYS.userName, input.userName.trim());
@@ -41,6 +46,7 @@ export function saveSessionDetails(input: {
 }
 
 export function clearSessionDetails() {
+  sessionStorage.removeItem(SESSION_KEYS.token);
   localStorage.removeItem(SESSION_KEYS.token);
   localStorage.removeItem(SESSION_KEYS.userName);
   localStorage.removeItem(SESSION_KEYS.userEmail);
