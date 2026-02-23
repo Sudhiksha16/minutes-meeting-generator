@@ -47,7 +47,7 @@ export default function AppShell() {
               className="h-9 shrink-0 rounded-xl px-3 text-xs sm:text-sm"
               onClick={() => {
                 clearSessionDetails();
-                navigate("/");
+                navigate("/", { replace: true });
               }}
             >
               Logout
