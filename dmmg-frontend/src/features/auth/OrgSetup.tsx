@@ -70,6 +70,7 @@ export default function OrgSetup() {
   // ✅ browse orgs (optional backend)
   const [orgs, setOrgs] = useState<OrgPublic[]>([]);
   const [loadingOrgs, setLoadingOrgs] = useState(false);
+  const [orgSearch, setOrgSearch] = useState("");
 
   function decodeOrgId(token: string): string | null {
     try {
@@ -153,6 +154,25 @@ export default function OrgSetup() {
       setLoadingOrgs(false);
     }
   }
+
+  async function onSearchOrgs() {
+    setMsg(null);
+    if (orgs.length === 0) {
+      await loadOrgs();
+    }
+  }
+
+  const filteredOrgs = useMemo(() => {
+    const q = orgSearch.trim().toLowerCase();
+    if (!q) return orgs;
+
+    return orgs.filter((o) => {
+      const name = o.name?.toLowerCase() ?? "";
+      const category = o.category?.toLowerCase() ?? "";
+      const id = o.id?.toLowerCase() ?? "";
+      return name.includes(q) || category.includes(q) || id.includes(q);
+    });
+  }, [orgs, orgSearch]);
 
   async function copy(text: string) {
     try {
@@ -288,9 +308,21 @@ export default function OrgSetup() {
                     {loadingOrgs ? "Loading..." : "Load Orgs"}
                   </Button>
                 </div>
-                {orgs.length > 0 ? (
+
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Input
+                    value={orgSearch}
+                    onChange={(e) => setOrgSearch(e.target.value)}
+                    placeholder="Search by org name / category / org ID"
+                  />
+                  <Button variant="outline" onClick={onSearchOrgs} disabled={loadingOrgs}>
+                    Search
+                  </Button>
+                </div>
+
+                {filteredOrgs.length > 0 ? (
                   <div className="space-y-2">
-                    {orgs.map((o) => (
+                    {filteredOrgs.map((o) => (
                       <div
                         key={o.id}
                         className="flex flex-col gap-2 rounded-md bg-muted/30 p-2 sm:flex-row sm:items-center sm:justify-between"
@@ -313,7 +345,9 @@ export default function OrgSetup() {
                   </div>
                 ) : (
                   <div className="text-xs text-muted-foreground">
-                    If you didn’t add backend route, this will show “API not found”.
+                    {orgs.length === 0
+                      ? "If you didn’t add backend route, this will show “API not found”."
+                      : "No organizations found for your search."}
                   </div>
                 )}
               </div>
