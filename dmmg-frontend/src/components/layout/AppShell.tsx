@@ -4,7 +4,7 @@ import { Moon, Sun } from "lucide-react";
 
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
-import { clearSessionDetails } from "@/lib/session";
+import { clearSessionDetails, getSessionToken } from "@/lib/session";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +19,7 @@ type ThemeMode = "light" | "dark";
 export default function AppShell() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const isAuthenticated = !!localStorage.getItem("token");
+  const isAuthenticated = !!getSessionToken();
   const isAuthPage = pathname === "/" || pathname.startsWith("/auth");
 
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
