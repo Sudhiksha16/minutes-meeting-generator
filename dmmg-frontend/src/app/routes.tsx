@@ -18,11 +18,23 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return token ? <>{children}</> : <Navigate to="/" replace />;
 }
 
+function PublicOnly({ children }: { children: React.ReactNode }) {
+  const token = localStorage.getItem("token");
+  return token ? <Navigate to="/dashboard" replace /> : <>{children}</>;
+}
+
 export const router = createBrowserRouter([
   {
     element: <AppShell />,
     children: [
-      { path: "/", element: <Login /> },
+      {
+        path: "/",
+        element: (
+          <PublicOnly>
+            <Login />
+          </PublicOnly>
+        ),
+      },
       { path: "/auth/forgot-password", element: <ForgotPassword /> },
       { path: "/auth/org", element: <OrgSetup /> },
 
