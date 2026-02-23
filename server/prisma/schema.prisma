@@ -110,8 +110,14 @@ model MeetingMinutes {
 enum Role {
   ADMIN
   HEAD
+  CEO
+  CHAIRMAN
+  HR
   MANAGER
   EMPLOYEE
+  FACULTY
+  CORESPONDANT
+  FOUNDER
   STUDENT
 }
 
