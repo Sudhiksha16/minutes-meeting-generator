@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { api } from "@/lib/api";
+import { getSessionToken } from "@/lib/session";
 import { jwtDecode } from "jwt-decode";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,7 +47,7 @@ export default function MeetingsDashboard() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const token = localStorage.getItem("token");
+  const token = getSessionToken();
 
   const currentUserId = useMemo(() => {
     if (!token) return null;

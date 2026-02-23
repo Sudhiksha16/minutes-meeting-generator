@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
-import { SESSION_KEYS } from "@/lib/session";
+import { getSessionToken, SESSION_KEYS } from "@/lib/session";
 
 type TokenPayload = {
   userId?: string;
@@ -34,7 +34,7 @@ export default function DashboardHome() {
   useEffect(() => {
     (async () => {
       try {
-        const token = localStorage.getItem("token");
+        const token = getSessionToken();
         if (!token) return;
 
         const decoded = jwtDecode<TokenPayload>(token);

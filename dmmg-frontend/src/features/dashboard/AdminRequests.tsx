@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { jwtDecode } from "jwt-decode";
 import { api } from "@/lib/api";
+import { getSessionToken } from "@/lib/session";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -73,7 +74,7 @@ export default function AdminRequests() {
   }
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
+    const token = getSessionToken();
     if (!token) {
       setMsg("No token found. Please login again.");
       setLoading(false);

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { api } from "@/lib/api";
+import { getSessionToken } from "@/lib/session";
 import { jwtDecode } from "jwt-decode";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,7 +67,7 @@ export default function MeetingDetails() {
   const [downloading, setDownloading] = useState(false);
   const nav = useNavigate();
 
-  const token = localStorage.getItem("token");
+  const token = getSessionToken();
   const currentUser = useMemo(() => {
     if (!token) return null;
     try {
@@ -196,7 +197,7 @@ export default function MeetingDetails() {
         </p>
       </div>
 
-      <Card className="border-white/40 bg-white/75 shadow-lg backdrop-blur-sm">
+      <Card className="border-border/70 bg-white/85 shadow-lg backdrop-blur-sm dark:bg-slate-900/70">
         <CardHeader className="space-y-2">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>

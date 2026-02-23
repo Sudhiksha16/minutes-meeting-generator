@@ -617,7 +617,7 @@ export default function CreateMeeting() {
       <Card className="w-full max-w-5xl border-border/70 bg-white/85 shadow-lg backdrop-blur-sm dark:bg-slate-900/70">
         <CardHeader>
           <CardTitle className="text-2xl tracking-tight">Create MOM</CardTitle>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+          <p className="mt-1 text-sm text-muted-foreground">
             Offline smart suggestions (AI-like) + clean MOM notes → Generate minutes + PDF.
           </p>
         </CardHeader>
@@ -734,7 +734,7 @@ export default function CreateMeeting() {
               />
 
               {descriptionMode === "AUTO" && (
-                <p className="text-xs text-slate-600 dark:text-slate-300">
+                <p className="text-xs text-muted-foreground">
                   Auto description updates when you change the topic.
                 </p>
               )}
@@ -786,7 +786,7 @@ export default function CreateMeeting() {
                   />
                 </PopoverContent>
               </Popover>
-              <p className="text-xs text-slate-600 dark:text-slate-300">
+              <p className="text-xs text-muted-foreground">
                 Allowed range: {dayjs(minDate).format("DD MMM")} → {dayjs(today).format("DD MMM")}
               </p>
             </div>
@@ -834,7 +834,7 @@ export default function CreateMeeting() {
                 </Select>
               </div>
 
-              <p className="text-xs text-slate-600 dark:text-slate-300">
+              <p className="text-xs text-muted-foreground">
                 Saved as: {isoDateTime ? dayjs(isoDateTime).format("DD/MM/YYYY hh:mm A") : "—"}
               </p>
             </div>
@@ -845,7 +845,7 @@ export default function CreateMeeting() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <Label>Participants</Label>
               <div className="flex w-full items-center gap-2 sm:w-auto">
-                <span className="text-sm text-slate-600 dark:text-slate-300">Count</span>
+                <span className="text-sm text-muted-foreground">Count</span>
                 <Select
                   value={participantCount}
                   onValueChange={(v) => {
@@ -1006,7 +1006,7 @@ export default function CreateMeeting() {
                       placeholder="Type custom decision"
                     />
                   ) : (
-                    <div className="pt-2 text-sm text-slate-600 dark:text-slate-300">{decisionLabel(row)}</div>
+                    <div className="pt-2 text-sm text-muted-foreground">{decisionLabel(row)}</div>
                   )}
 
                   <Button

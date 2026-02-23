@@ -1,5 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
+import { getSessionToken } from "@/lib/session";
 
 type TokenPayload = {
   role: string;
@@ -7,7 +8,7 @@ type TokenPayload = {
 };
 
 export default function RequireAdmin({ children }: { children: React.ReactNode }) {
-  const token = localStorage.getItem("token");
+  const token = getSessionToken();
   if (!token) return <Navigate to="/login" replace />;
 
   try {
