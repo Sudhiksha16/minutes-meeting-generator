@@ -5,6 +5,14 @@ import { Moon, Sun } from "lucide-react";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { clearSessionDetails } from "@/lib/session";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type ThemeMode = "light" | "dark";
 
@@ -15,6 +23,7 @@ export default function AppShell() {
   const isAuthPage = pathname === "/" || pathname.startsWith("/auth");
 
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
+  const [leaveOrgOpen, setLeaveOrgOpen] = useState(false);
 
   function applyTheme(mode: ThemeMode) {
     document.documentElement.classList.toggle("dark", mode === "dark");
@@ -75,6 +84,14 @@ export default function AppShell() {
               </Button>
 
               <Button
+                variant="destructive"
+                className="h-9 shrink-0 rounded-xl px-3 text-xs sm:text-sm"
+                onClick={() => setLeaveOrgOpen(true)}
+              >
+                Leave Org
+              </Button>
+
+              <Button
                 variant="outline"
                 className="h-9 shrink-0 rounded-xl px-3 text-xs sm:text-sm"
                 onClick={() => {
@@ -96,6 +113,31 @@ export default function AppShell() {
           )}
         </div>
       </header>
+
+      <Dialog open={leaveOrgOpen} onOpenChange={setLeaveOrgOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Leave Organization</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to leave your current organization? You will be redirected to organization setup.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLeaveOrgOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setLeaveOrgOpen(false);
+                navigate("/auth/org");
+              }}
+            >
+              Confirm Leave
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <main className="mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-8">
         {isAuthPage ? (
