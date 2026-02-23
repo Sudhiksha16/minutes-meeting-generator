@@ -1,6 +1,7 @@
 export const SESSION_KEYS = {
   token: "token",
   userName: "session_user_name",
+  userEmail: "session_user_email",
   userRole: "session_user_role",
   orgName: "session_org_name",
 } as const;
@@ -8,6 +9,7 @@ export const SESSION_KEYS = {
 export function saveSessionDetails(input: {
   token: string;
   userName?: string | null;
+  userEmail?: string | null;
   userRole?: string | null;
   orgName?: string | null;
 }) {
@@ -17,6 +19,12 @@ export function saveSessionDetails(input: {
     localStorage.setItem(SESSION_KEYS.userName, input.userName.trim());
   } else {
     localStorage.removeItem(SESSION_KEYS.userName);
+  }
+
+  if (input.userEmail?.trim()) {
+    localStorage.setItem(SESSION_KEYS.userEmail, input.userEmail.trim());
+  } else {
+    localStorage.removeItem(SESSION_KEYS.userEmail);
   }
 
   if (input.userRole?.trim()) {
@@ -35,6 +43,7 @@ export function saveSessionDetails(input: {
 export function clearSessionDetails() {
   localStorage.removeItem(SESSION_KEYS.token);
   localStorage.removeItem(SESSION_KEYS.userName);
+  localStorage.removeItem(SESSION_KEYS.userEmail);
   localStorage.removeItem(SESSION_KEYS.userRole);
   localStorage.removeItem(SESSION_KEYS.orgName);
 }
