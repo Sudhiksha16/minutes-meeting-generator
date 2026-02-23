@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { api } from "@/lib/api";
 import { jwtDecode } from "jwt-decode";
+import { CalendarDays, Users } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -86,8 +87,8 @@ export default function MeetingsList() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Meetings</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Meetings</h1>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
             Click a meeting to view details, minutes, and PDF.
           </p>
         </div>
@@ -100,30 +101,30 @@ export default function MeetingsList() {
       </div>
 
       {msg && (
-        <div className="text-sm rounded-xl border bg-background/60 px-4 py-3">
+        <div className="rounded-xl border border-border/70 bg-white/80 px-4 py-3 text-sm text-slate-700 dark:bg-slate-900/60 dark:text-slate-200">
           {msg}
         </div>
       )}
 
-      <Card className="rounded-2xl border-white/40 bg-white/75 shadow-lg backdrop-blur-sm">
+      <Card className="rounded-2xl border-border/70 bg-white/85 shadow-lg backdrop-blur-sm dark:bg-slate-900/70">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">All Meetings</CardTitle>
         </CardHeader>
 
         <CardContent className="pt-0">
-          {isLoading && <div className="text-sm text-muted-foreground py-6">Loading…</div>}
+          {isLoading && <div className="py-6 text-sm text-slate-600 dark:text-slate-300">Loading...</div>}
 
           {isError && (
             <div className="text-sm text-red-600 py-6">
               Failed to load.{" "}
-              <span className="text-muted-foreground">
+              <span className="text-slate-600 dark:text-slate-300">
                 {(error as any)?.response?.data?.message ?? (error as any)?.message ?? ""}
               </span>
             </div>
           )}
 
           {!isLoading && !isError && (
-            <div className="overflow-hidden rounded-xl border border-white/40 bg-background/60">
+            <div className="overflow-hidden rounded-xl border border-border/70 bg-background/70 dark:bg-slate-950/35">
               {meetings.map((m, idx) => {
                 const dbCount = m.participants?.length ?? 0;
                 const participantsCount = dbCount > 0 ? dbCount : countParticipantsFromNotes(m.notes);
@@ -133,23 +134,30 @@ export default function MeetingsList() {
                   <div key={m.id}>
                     <button
                       onClick={() => nav(`/meetings/${m.id}`)}
-                      className="w-full px-4 py-4 text-left transition hover:bg-white/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="w-full px-4 py-4 text-left transition hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring dark:hover:bg-slate-900/70"
                     >
                       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0 space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <div className="font-medium truncate">{m.title}</div>
+                            <div className="truncate font-semibold text-foreground">{m.title}</div>
                             <Badge variant="secondary" className="shrink-0">
                               {m.visibility === "PUBLIC_ORG" ? "Org" : "Private"}
                             </Badge>
                           </div>
 
-                          <div className="text-sm text-muted-foreground line-clamp-1">
+                          <div className="line-clamp-1 text-sm text-slate-600 dark:text-slate-300">
                             {m.description ?? "No description"}
                           </div>
 
-                          <div className="text-xs text-muted-foreground break-words">
-                            📅 {dayjs(m.dateTime).format("DD MMM YYYY, hh:mm A")} • 👥 {participantsCount}
+                          <div className="flex items-center gap-3 break-words text-xs text-slate-600 dark:text-slate-300">
+                            <span className="inline-flex items-center gap-1">
+                              <CalendarDays className="h-3.5 w-3.5" />
+                              {dayjs(m.dateTime).format("DD MMM YYYY, hh:mm A")}
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <Users className="h-3.5 w-3.5" />
+                              {participantsCount}
+                            </span>
                           </div>
                         </div>
 
@@ -195,7 +203,7 @@ export default function MeetingsList() {
 
               {!isLoading && meetings.length === 0 && (
                 <div className="py-10 text-center">
-                  <div className="text-sm text-muted-foreground">No meetings yet.</div>
+                  <div className="text-sm text-slate-600 dark:text-slate-300">No meetings yet.</div>
                 </div>
               )}
             </div>
