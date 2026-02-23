@@ -51,11 +51,12 @@ export default function Login() {
       saveSessionDetails({
         token,
         userName: res.data?.user?.name ?? null,
+        userEmail: res.data?.user?.email ?? null,
         userRole: res.data?.user?.role ?? null,
         orgName: res.data?.org?.name ?? null,
       });
 
-      nav("/dashboard");
+      nav("/dashboard", { replace: true });
     } catch (e: unknown) {
       const err = e as ApiError;
       setMsg(err?.response?.data?.message ?? err?.message ?? "Login failed");
