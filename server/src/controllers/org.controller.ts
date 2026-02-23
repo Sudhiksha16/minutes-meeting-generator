@@ -5,7 +5,8 @@ import { UserStatus, Role } from "@prisma/client";
  * Helper: check admin-like roles
  */
 function isOrgAdmin(role?: Role) {
-  return role === Role.ADMIN || role === Role.HEAD;
+  const roleValue = String(role ?? "");
+  return roleValue === Role.ADMIN;
 }
 
 /**
@@ -43,7 +44,7 @@ export async function joinOrg(req: any, res: any) {
 
     const me = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, orgId: true, status: true },
+      select: { id: true, orgId: true, status: true, role: true },
     });
 
     if (!me) return res.status(404).json({ message: "User not found" });
@@ -53,6 +54,22 @@ export async function joinOrg(req: any, res: any) {
       return res.status(400).json({
         message: "You are already an active member in an organization.",
       });
+    }
+
+    if (me.role === "ADMIN") {
+      const adminExists = await prisma.user.findFirst({
+        where: {
+          orgId,
+          role: Role.ADMIN,
+          status: { in: [UserStatus.ACTIVE, UserStatus.PENDING] },
+          id: { not: userId },
+        },
+        select: { id: true },
+      });
+
+      if (adminExists) {
+        return res.status(409).json({ message: "This organization already has an admin." });
+      }
     }
 
     const updated = await prisma.user.update({
@@ -130,7 +147,7 @@ export async function approveMember(req: any, res: any) {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, orgId: true, status: true },
+      select: { id: true, orgId: true, status: true, role: true },
     });
 
     if (!user) return res.status(404).json({ message: "User not found" });
@@ -141,6 +158,22 @@ export async function approveMember(req: any, res: any) {
     // ✅ only allow approving pending users
     if (user.status !== UserStatus.PENDING) {
       return res.status(400).json({ message: `Cannot approve user with status ${user.status}` });
+    }
+
+    if (user.role === Role.ADMIN) {
+      const adminExists = await prisma.user.findFirst({
+        where: {
+          orgId,
+          role: Role.ADMIN,
+          status: UserStatus.ACTIVE,
+          id: { not: userId },
+        },
+        select: { id: true },
+      });
+
+      if (adminExists) {
+        return res.status(409).json({ message: "This organization already has an active admin." });
+      }
     }
 
     const updated = await prisma.user.update({

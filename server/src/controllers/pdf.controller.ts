@@ -240,7 +240,12 @@ export async function downloadMinutesPdf(req: any, res: any) {
 
     const isCreator = meeting.createdBy === user.userId;
     const isParticipant = meeting.participants.some((p) => p.userId === user.userId);
-    const isAdmin = user.role === "ADMIN" || user.role === "HEAD";
+    const isAdmin =
+      user.role === "ADMIN" ||
+      user.role === "HEAD" ||
+      user.role === "CEO" ||
+      user.role === "CHAIRMAN" ||
+      user.role === "FOUNDER";
 
     if (meeting.visibility === "PRIVATE" && !isCreator && !isParticipant && !isAdmin) {
       return res.status(403).json({ message: "Not allowed" });

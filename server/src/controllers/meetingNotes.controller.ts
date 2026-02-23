@@ -6,6 +6,8 @@ export async function updateMeetingNotes(req: any, res: any) {
     const meetingId = String(req.params.meetingId);
     const orgId = String(req.user.orgId);
     const userId = String(req.user.userId);
+    const role = String(req.user.role ?? "");
+    const isAdmin = role === "ADMIN";
 
     const notesRaw = req.body?.notes;
     if (typeof notesRaw !== "string" || notesRaw.trim().length === 0) {
@@ -24,8 +26,8 @@ export async function updateMeetingNotes(req: any, res: any) {
     const isCreator = meeting.createdBy === userId;
     const isParticipant = meeting.participants.some((p) => p.userId === userId);
 
-    // Strict privacy: only creator/participant can update notes
-    if (!isCreator && !isParticipant) {
+    // Creator/participant/admin can update notes
+    if (!isCreator && !isParticipant && !isAdmin) {
       return res.status(403).json({ message: "Not allowed to update notes for this meeting" });
     }
 

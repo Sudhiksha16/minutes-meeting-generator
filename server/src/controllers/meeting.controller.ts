@@ -81,21 +81,25 @@ export async function listMeetings(req: any, res: any) {
   try {
     const orgId = req.user.orgId;
     const userId = req.user.userId;
+    const role = req.user.role;
+    const isAdmin = role === "ADMIN";
 
     const meetings = await prisma.meeting.findMany({
-      where: {
-        orgId,
-        OR: [
-          { visibility: "PUBLIC_ORG" },
-          { visibility: "PRIVATE", createdBy: userId },
-          {
-            visibility: "PRIVATE",
-            participants: {
-              some: { userId },
-            },
+      where: isAdmin
+        ? { orgId }
+        : {
+            orgId,
+            OR: [
+              { visibility: "PUBLIC_ORG" },
+              { visibility: "PRIVATE", createdBy: userId },
+              {
+                visibility: "PRIVATE",
+                participants: {
+                  some: { userId },
+                },
+              },
+            ],
           },
-        ],
-      },
       orderBy: { createdAt: "desc" },
       include: {
         participants: {
@@ -151,6 +155,8 @@ export async function getMeeting(req: any, res: any) {
     const meetingId = req.params.meetingId as string;
     const orgId = req.user.orgId as string;
     const userId = req.user.userId as string;
+    const role = String(req.user.role ?? "");
+    const isAdmin = role === "ADMIN";
 
     const meeting = await prisma.meeting.findFirst({
       where: { id: meetingId, orgId },
@@ -171,7 +177,7 @@ export async function getMeeting(req: any, res: any) {
     if (meeting.visibility !== "PUBLIC_ORG") {
       const isCreator = meeting.createdBy === userId;
       const isParticipant = (meeting.participants || []).some((p: any) => p.userId === userId);
-      if (!isCreator && !isParticipant) {
+      if (!isCreator && !isParticipant && !isAdmin) {
         return res.status(403).json({ message: "Not allowed" });
       }
     }
@@ -187,14 +193,16 @@ export async function updateMeeting(req: any, res: any) {
     const meetingId = req.params.meetingId as string;
     const orgId = req.user.orgId as string;
     const userId = req.user.userId as string;
+    const role = String(req.user.role ?? "");
+    const isAdmin = role === "ADMIN";
 
     const meeting = await prisma.meeting.findFirst({
       where: { id: meetingId, orgId },
     });
 
     if (!meeting) return res.status(404).json({ message: "Meeting not found" });
-    if (meeting.createdBy !== userId) {
-      return res.status(403).json({ message: "Only creator can edit" });
+    if (meeting.createdBy !== userId && !isAdmin) {
+      return res.status(403).json({ message: "Only creator or admin can edit" });
     }
 
     const { title, description, visibility, dateTime, notes } = req.body;

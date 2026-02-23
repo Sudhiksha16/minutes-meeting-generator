@@ -3,6 +3,36 @@ import { prisma } from "../utils/prisma";
 import { signAccessToken } from "../utils/jwt";
 import { isValidPassword } from "../utils/validation";
 
+const ORG_JOIN_ROLES = [
+  "ADMIN",
+  "CEO",
+  "CHAIRMAN",
+  "HR",
+  "HEAD",
+  "MANAGER",
+  "EMPLOYEE",
+];
+
+const EDUCATION_JOIN_ROLES = [
+  "ADMIN",
+  "FOUNDER",
+  "CORESPONDANT",
+  "FACULTY",
+  "HEAD",
+  "STUDENT",
+];
+
+function isEducationCategory(category?: string | null) {
+  const value = String(category ?? "").trim().toLowerCase();
+  return (
+    value.includes("education") ||
+    value.includes("school") ||
+    value.includes("college") ||
+    value.includes("university") ||
+    value.includes("institution")
+  );
+}
+
 // 1) POST /auth/register/create-org
 export async function createOrgAndAdmin(req: any, res: any) {
   try {
@@ -92,6 +122,10 @@ export async function joinOrg(req: any, res: any) {
     const org = await prisma.organization.findUnique({ where: { id: orgId } });
     if (!org) return res.status(404).json({ message: "Organization not found" });
 
+    const allowedRoles = isEducationCategory(org.category) ? EDUCATION_JOIN_ROLES : ORG_JOIN_ROLES;
+    const requestedRole = String(role ?? "").trim().toUpperCase();
+    const finalRole = allowedRoles.includes(requestedRole) ? requestedRole : allowedRoles[0];
+
     const existing = await prisma.user.findFirst({
       where: { email: cleanEmail, orgId },
     });
@@ -100,13 +134,28 @@ export async function joinOrg(req: any, res: any) {
       return res.status(409).json({ message: "User already exists in this organization" });
     }
 
+    if (finalRole === "ADMIN") {
+      const adminExists = await prisma.user.findFirst({
+        where: {
+          orgId,
+          role: "ADMIN",
+          status: { in: ["ACTIVE", "PENDING"] },
+        },
+        select: { id: true },
+      });
+
+      if (adminExists) {
+        return res.status(409).json({ message: "This organization already has an admin." });
+      }
+    }
+
     const user = await prisma.user.create({
       data: {
         orgId,
         name,
         email: cleanEmail,
         passwordHash: await bcrypt.hash(password, 10),
-        role: role || "EMPLOYEE",
+        role: finalRole as any,
         status: "PENDING",
       },
     });
