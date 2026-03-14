@@ -48,7 +48,6 @@ const MINUTES_5 = Array.from({ length: 12 }, (_, i) =>
   String(i * 5).padStart(2, "0")
 );
 const AMPM = ["AM", "PM"] as const;
-const PARTICIPANT_COUNT = Array.from({ length: 19 }, (_, i) => String(i + 2)); // 2..20
 
 type ActionItemRow = {
   task: string;
@@ -63,7 +62,14 @@ type DecisionRow = {
 };
 
 type MeetingSuggestResponse = {
+  domain?: string;
+  meetingType?: string;
+  meetingCategory?: "Formal" | "Operational" | "Strategic" | "Informal";
+  meetingTypeOptions?: string[];
   topics?: string[];
+  descriptionsByTopic?: { topic?: string; descriptions?: string[] }[];
+  agendasByTopic?: { topic?: string; items?: string[] }[];
+  discussionPointsByTopic?: { topic?: string; items?: string[] }[];
   descriptions?: string[];
   agendas?: string[];
   discussionPoints?: string[];
@@ -88,6 +94,26 @@ type OrgMember = {
   email: string;
   role: string;
   status?: string;
+};
+
+type MeetingParticipant = {
+  userId: string;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
+};
+
+type MeetingForEdit = {
+  id: string;
+  title: string;
+  description?: string | null;
+  visibility: "PRIVATE" | "PUBLIC_ORG";
+  dateTime: string;
+  notes?: string | null;
+  participants?: MeetingParticipant[];
 };
 
 type FieldMode = "AUTO" | "CUSTOM";
@@ -251,6 +277,20 @@ function pickMeetingType(title: string): MeetingTypeKey {
   return best.key;
 }
 
+function inferMeetingCategory(title: string): "Formal" | "Operational" | "Strategic" | "Informal" {
+  const t = title.toLowerCase();
+  if (["agm", "egm", "board", "statutory", "compliance", "audit", "resolution"].some((kw) => t.includes(kw))) {
+    return "Formal";
+  }
+  if (["strategy", "roadmap", "vision", "quarterly plan"].some((kw) => t.includes(kw))) {
+    return "Strategic";
+  }
+  if (["brainstorm", "check-in", "standup", "sync", "retrospective"].some((kw) => t.includes(kw))) {
+    return "Informal";
+  }
+  return "Operational";
+}
+
 function to24h(hour12: string, minute: string, ampm: "AM" | "PM") {
   let h = Number(hour12);
   if (ampm === "AM") {
@@ -274,14 +314,38 @@ function buildDueOptions(base: Date, days = 10) {
   return out;
 }
 
-export default function CreateMeeting() {
+function extractSingleField(notes: string, label: string): string {
+  const rx = new RegExp(`^${label}:\\s*(.*)$`, "im");
+  const m = notes.match(rx);
+  return (m?.[1] ?? "").trim();
+}
+
+function extractSection(notes: string, header: string): string {
+  const rx = new RegExp(`${header}:\\s*([\\s\\S]*?)(?:\\n\\s*\\n|$)`, "i");
+  const m = notes.match(rx);
+  return (m?.[1] ?? "").trim();
+}
+
+export default function CreateMeeting({ editMeetingId }: { editMeetingId?: string } = {}) {
   const nav = useNavigate();
+  const isEditMode = Boolean(editMeetingId);
 
   const [title, setTitle] = useState("");
   const [visibility, setVisibility] = useState<"PRIVATE" | "PUBLIC_ORG">("PRIVATE");
 
   // ✅ NEW: meeting type (auto)
   const [meetingType, setMeetingType] = useState<MeetingTypeKey>("General");
+  const [meetingTypeLabel, setMeetingTypeLabel] = useState("General");
+  const [meetingCategory, setMeetingCategory] = useState<
+    "Formal" | "Operational" | "Strategic" | "Informal"
+  >("Operational");
+  const [meetingDomain, setMeetingDomain] = useState("General Business");
+  const [meetingTypeOptions, setMeetingTypeOptions] = useState<string[]>([
+    "Operational Meeting",
+    "Strategic Meeting",
+    "Formal Meeting",
+    "Informal Meeting",
+  ]);
 
   // ✅ Topic & Description (auto/custom)
   const [topicMode, setTopicMode] = useState<FieldMode>("AUTO");
@@ -297,6 +361,10 @@ export default function CreateMeeting() {
     return MEETING_LIBRARY[meetingType]?.topics ?? MEETING_LIBRARY.General.topics;
   }, [meetingType]);
   const [topicSuggestions, setTopicSuggestions] = useState<string[]>([]);
+  const [descriptionSuggestions, setDescriptionSuggestions] = useState<string[]>([]);
+  const [descriptionsByTopic, setDescriptionsByTopic] = useState<Record<string, string[]>>({});
+  const [agendasByTopic, setAgendasByTopic] = useState<Record<string, string[]>>({});
+  const [discussionByTopic, setDiscussionByTopic] = useState<Record<string, string[]>>({});
 
   // date + time
   const [date, setDate] = useState<Date | undefined>(new Date());
@@ -310,10 +378,11 @@ export default function CreateMeeting() {
   const [locationCustom, setLocationCustom] = useState("");
 
   // participants
-  const [participantCount, setParticipantCount] = useState("2");
-  const [participantUserIds, setParticipantUserIds] = useState<string[]>(["", ""]);
+  const [participantCount, setParticipantCount] = useState("1");
+  const [participantUserIds, setParticipantUserIds] = useState<string[]>([""]);
   const [orgMembers, setOrgMembers] = useState<OrgMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
+  const [participantMsg, setParticipantMsg] = useState<string | null>(null);
 
   // sections
   const [agenda, setAgenda] = useState("");
@@ -359,6 +428,149 @@ export default function CreateMeeting() {
     return Array.from(new Set(participantUserIds.filter(Boolean)));
   }, [participantUserIds]);
 
+  const maxParticipantCount = useMemo(() => {
+    return Math.max(orgMembers.length, 1);
+  }, [orgMembers.length]);
+
+  const participantCountOptions = useMemo(() => {
+    return Array.from({ length: maxParticipantCount }, (_, i) => String(i + 1));
+  }, [maxParticipantCount]);
+
+  useEffect(() => {
+    if (!isEditMode || !editMeetingId) return;
+
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await api.get<{ meeting: MeetingForEdit }>(`/meetings/${editMeetingId}`);
+        if (!mounted) return;
+        const meeting = res.data?.meeting;
+        if (!meeting) return;
+
+        setTitle(meeting.title ?? "");
+        setDescription(meeting.description ?? "");
+        setTopicMode("CUSTOM");
+        setDescriptionMode("CUSTOM");
+        setAgendaMode("CUSTOM");
+        setDiscussionMode("CUSTOM");
+        setVisibility(meeting.visibility ?? "PRIVATE");
+
+        if (meeting.dateTime) {
+          const dt = dayjs(meeting.dateTime);
+          setDate(dt.toDate());
+          let hh = dt.hour();
+          const mm = dt.minute();
+          const localAmpm: "AM" | "PM" = hh >= 12 ? "PM" : "AM";
+          if (hh === 0) hh = 12;
+          else if (hh > 12) hh -= 12;
+          setHour(String(hh).padStart(2, "0"));
+          setMinute(String(Math.floor(mm / 5) * 5).padStart(2, "0"));
+          setAmpm(localAmpm);
+        }
+
+        const selectedParticipantIds = (meeting.participants ?? [])
+          .map((p) => p.userId)
+          .filter(Boolean);
+        if (selectedParticipantIds.length > 0) {
+          setParticipantUserIds(selectedParticipantIds);
+          setParticipantCount(String(Math.max(1, selectedParticipantIds.length)));
+        }
+
+        const notes = String(meeting.notes ?? "");
+        if (!notes.trim()) return;
+
+        const parsedMeetingType = extractSingleField(notes, "Meeting Type");
+        const parsedCategory = extractSingleField(notes, "Meeting Category");
+        const parsedDomain = extractSingleField(notes, "Meeting Domain");
+        const parsedTopic = extractSingleField(notes, "Topic");
+        const parsedLocation = extractSingleField(notes, "Location");
+        const parsedAgenda = extractSection(notes, "Agenda");
+        const parsedPoints = extractSection(notes, "Points Discussed");
+        const parsedDecisions = extractSection(notes, "Decisions");
+        const parsedActions = extractSection(notes, "Action Items");
+
+        if (parsedMeetingType) {
+          setMeetingTypeLabel(parsedMeetingType);
+          setMeetingTypeOptions((prev) => Array.from(new Set([parsedMeetingType, ...prev])));
+        }
+        if (parsedCategory === "Formal" || parsedCategory === "Operational" || parsedCategory === "Strategic" || parsedCategory === "Informal") {
+          setMeetingCategory(parsedCategory);
+        }
+        if (parsedDomain) setMeetingDomain(parsedDomain);
+        if (parsedTopic && parsedTopic !== "-") setTopic(parsedTopic);
+
+        if (parsedLocation && parsedLocation !== "-") {
+          const matched = LOCATION_OPTIONS.find((opt) => opt === parsedLocation);
+          if (matched) {
+            setLocationChoice(matched);
+            setLocationCustom("");
+          } else {
+            setLocationChoice("Custom");
+            setLocationCustom(parsedLocation);
+          }
+        }
+
+        if (parsedAgenda) {
+          setAgenda(parsedAgenda);
+          setAgendaMode("CUSTOM");
+        }
+        if (parsedPoints) {
+          setDiscussionPoints(parsedPoints);
+          setDiscussionMode("CUSTOM");
+        }
+
+        if (parsedDecisions) {
+          const lines = parsedDecisions
+            .split("\n")
+            .map((l) => l.trim().replace(/^-+\s*/, ""))
+            .filter(Boolean);
+          if (lines.length > 0) {
+            const mapped: DecisionRow[] = lines.map((line) => {
+              const lower = line.toLowerCase();
+              if (lower === "accepted") return { choice: "ACCEPTED" };
+              if (lower === "rejected") return { choice: "REJECTED" };
+              if (lower === "deferred") return { choice: "DEFERRED" };
+              return { choice: "CUSTOM", customText: line };
+            });
+            setDecisions(mapped);
+          }
+        }
+
+        if (parsedActions) {
+          const rows: ActionItemRow[] = parsedActions
+            .split("\n")
+            .map((l) => l.trim())
+            .filter((l) => l.startsWith("-"))
+            .map((line) => {
+              const clean = line.replace(/^-+\s*/, "").trim();
+              const parts = clean.split("|").map((p) => p.trim());
+              const task = parts[0] ?? "";
+              const ownerPart = parts.find((p) => /^Owner:/i.test(p));
+              const duePart = parts.find((p) => /^Due:/i.test(p));
+              const owner = ownerPart ? ownerPart.replace(/^Owner:\s*/i, "").trim() : "";
+              const dueLabel = duePart ? duePart.replace(/^Due:\s*/i, "").trim() : "";
+              const matchedDue = dueOptions.find((d) => d.label === dueLabel)?.iso ?? "";
+
+              return {
+                task,
+                owner: owner || "Unassigned",
+                dueChoice: matchedDue || "",
+              } as ActionItemRow;
+            })
+            .filter((r) => r.task);
+
+          if (rows.length > 0) setActionItems(rows);
+        }
+      } catch {
+        // keep defaults on preload failure
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [editMeetingId, isEditMode, dueOptions]);
+
   async function generateFromTitle(titleInput: string) {
     const t = titleInput.trim();
     if (!t) return;
@@ -370,20 +582,96 @@ export default function CreateMeeting() {
 
       const aiTopics = (data.topics ?? []).map((x) => x.trim()).filter(Boolean);
       const aiDescriptions = (data.descriptions ?? []).map((x) => x.trim()).filter(Boolean);
+
+      const descMap: Record<string, string[]> = {};
+      (data.descriptionsByTopic ?? []).forEach((entry) => {
+        const topicKey = String(entry?.topic ?? "").trim();
+        if (!topicKey) return;
+        const values = (entry?.descriptions ?? [])
+          .map((v) => String(v).trim())
+          .filter(Boolean);
+        if (values.length > 0) descMap[topicKey] = values;
+      });
+
+      const agendaMap: Record<string, string[]> = {};
+      (data.agendasByTopic ?? []).forEach((entry) => {
+        const topicKey = String(entry?.topic ?? "").trim();
+        if (!topicKey) return;
+        const values = (entry?.items ?? [])
+          .map((v) => String(v).trim())
+          .filter(Boolean);
+        if (values.length > 0) agendaMap[topicKey] = values;
+      });
+
+      const discussionMap: Record<string, string[]> = {};
+      (data.discussionPointsByTopic ?? []).forEach((entry) => {
+        const topicKey = String(entry?.topic ?? "").trim();
+        if (!topicKey) return;
+        const values = (entry?.items ?? [])
+          .map((v) => String(v).trim())
+          .filter(Boolean);
+        if (values.length > 0) discussionMap[topicKey] = values;
+      });
+
+      setDescriptionsByTopic(descMap);
+      setAgendasByTopic(agendaMap);
+      setDiscussionByTopic(discussionMap);
+
+      setMeetingType(pickMeetingType(t));
+      const selectedType = String(data.meetingType ?? "").trim() || pickMeetingType(t);
+      setMeetingTypeLabel(selectedType);
+      setMeetingDomain(String(data.domain ?? "").trim() || "General Business");
+      const aiTypeOptions = (data.meetingTypeOptions ?? [])
+        .map((x) => String(x).trim())
+        .filter(Boolean);
+      const mergedTypeOptions = Array.from(
+        new Set([
+          selectedType,
+          ...(aiTypeOptions.length > 0
+            ? aiTypeOptions
+            : ["Operational Meeting", "Strategic Meeting", "Formal Meeting", "Informal Meeting"]),
+        ])
+      );
+      setMeetingTypeOptions(mergedTypeOptions);
+
+      if (
+        data.meetingCategory === "Formal" ||
+        data.meetingCategory === "Operational" ||
+        data.meetingCategory === "Strategic" ||
+        data.meetingCategory === "Informal"
+      ) {
+        setMeetingCategory(data.meetingCategory);
+      }
+
       if (aiTopics.length > 0) setTopicSuggestions(aiTopics);
 
+      const selectedTopic = data.suggestedTopic?.trim() || aiTopics[0] || "General discussion";
+      const selectedDescriptions = descMap[selectedTopic] ?? aiDescriptions;
+      setDescriptionSuggestions(selectedDescriptions);
+
       if (topicMode === "AUTO") {
-        setTopic(data.suggestedTopic?.trim() || aiTopics[0] || "General discussion");
+        setTopic(selectedTopic);
       }
 
       if (descriptionMode === "AUTO") {
         setDescription(
           data.suggestedDescription?.trim() ||
-            aiDescriptions[0] ||
-            MEETING_LIBRARY[pickMeetingType(t)].descByTopic(topic || "General discussion", t)
+            selectedDescriptions[0] ||
+            MEETING_LIBRARY[pickMeetingType(t)].descByTopic(selectedTopic, t)
         );
       }
 
+      if (agendaMode === "AUTO") {
+        const agendaItems = agendaMap[selectedTopic] ?? (data.agendas ?? []);
+        setAgenda((data.suggestedAgenda?.trim() || agendaItems.join("\n")).trim());
+      }
+
+      if (discussionMode === "AUTO") {
+        const discussionItems = discussionMap[selectedTopic] ?? (data.discussionPoints ?? []);
+        setDiscussionPoints(
+          (data.suggestedDiscussionPoints?.trim() || discussionItems.join("\n")).trim()
+        );
+      }
     } catch (e: unknown) {
       const err = e as ApiError;
       setMsg(err?.response?.data?.message ?? "AI suggestion failed. Using smart fallback.");
@@ -396,7 +684,12 @@ export default function CreateMeeting() {
     if (topicSuggestions.length === 0) {
       setTopicSuggestions(defaultTopicSuggestions);
     }
-  }, [defaultTopicSuggestions, topicSuggestions.length]);
+    if (descriptionSuggestions.length === 0 && title.trim()) {
+      const libType = pickMeetingType(title.trim());
+      const libTopic = topic.trim() || MEETING_LIBRARY[libType].topics[0] || "General discussion";
+      setDescriptionSuggestions([MEETING_LIBRARY[libType].descByTopic(libTopic, title.trim())]);
+    }
+  }, [defaultTopicSuggestions, topicSuggestions.length, descriptionSuggestions.length, title, topic]);
 
   useEffect(() => {
     let mounted = true;
@@ -423,10 +716,13 @@ export default function CreateMeeting() {
   useEffect(() => {
     const t = title.trim();
     if (!t) return;
+    if (isEditMode) return;
 
     const handle = setTimeout(() => {
       const mt = pickMeetingType(t);
       setMeetingType(mt);
+      setMeetingTypeLabel(mt);
+      setMeetingCategory(inferMeetingCategory(t));
 
       // set topic if AUTO
       if (topicMode === "AUTO") {
@@ -447,7 +743,7 @@ export default function CreateMeeting() {
 
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, topicMode, descriptionMode]);
+  }, [title, topicMode, descriptionMode, isEditMode]);
 
   // ✅ When user selects topic (AUTO), update description (AUTO)
   useEffect(() => {
@@ -455,14 +751,29 @@ export default function CreateMeeting() {
     if (!t) return;
     if (descriptionMode !== "AUTO") return;
     if (!topic.trim()) return;
+    const topicDescriptions = descriptionsByTopic[topic] ?? [];
+    setDescriptionSuggestions(topicDescriptions);
+
+    if (topicDescriptions.length > 0) {
+      setDescription(topicDescriptions[0]);
+      return;
+    }
 
     setDescription(MEETING_LIBRARY[meetingType].descByTopic(topic, t));
-  }, [topic, meetingType, descriptionMode, title]);
+  }, [topic, meetingType, descriptionMode, title, descriptionsByTopic]);
 
   useEffect(() => {
     const t = title.trim();
     if (!t) return;
-    if (topicMode !== "AUTO" && descriptionMode !== "AUTO") return;
+    if (isEditMode) return;
+    if (
+      topicMode !== "AUTO" &&
+      descriptionMode !== "AUTO" &&
+      agendaMode !== "AUTO" &&
+      discussionMode !== "AUTO"
+    ) {
+      return;
+    }
 
     const handle = setTimeout(() => {
       generateFromTitle(t);
@@ -470,7 +781,7 @@ export default function CreateMeeting() {
 
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, topicMode, descriptionMode]);
+  }, [title, topicMode, descriptionMode, agendaMode, discussionMode, isEditMode]);
 
   useEffect(() => {
     const topicText = topic.trim();
@@ -481,22 +792,32 @@ export default function CreateMeeting() {
       if (agendaMode === "AUTO") {
         const topicValue = topicText || "General discussion";
         const descriptionValue = descriptionText || "No description";
-        setAgenda(
-          [
-            `Topic: ${topicValue}`,
-            `Description: ${descriptionValue}`,
-            "",
-            "Agenda:",
-            `- Overview and objective of ${topicValue}`,
-            "- Core discussion points",
-            "- Decisions and action plan",
-          ].join("\n")
-        );
+        const topicAgenda = agendasByTopic[topicValue] ?? [];
+        if (topicAgenda.length > 0) {
+          setAgenda(topicAgenda.map((x) => `- ${x}`).join("\n"));
+        } else {
+          setAgenda(
+            [
+              `Topic: ${topicValue}`,
+              `Description: ${descriptionValue}`,
+              "",
+              "Agenda:",
+              `- Overview and objective of ${topicValue}`,
+              "- Core discussion points",
+              "- Decisions and action plan",
+            ].join("\n")
+          );
+        }
       }
 
       if (discussionMode === "AUTO") {
         const topicValue = topicText || "the discussed topic";
         const descriptionValue = descriptionText || "the meeting description";
+        const topicDiscussion = discussionByTopic[topicValue] ?? [];
+        if (topicDiscussion.length > 0) {
+          setDiscussionPoints(topicDiscussion.map((x) => `- ${x}`).join("\n"));
+          return;
+        }
         setDiscussionPoints(
           [
             `Discussion started on ${topicValue}.`,
@@ -509,7 +830,7 @@ export default function CreateMeeting() {
     }, 300);
 
     return () => clearTimeout(handle);
-  }, [topic, description, agendaMode, discussionMode]);
+  }, [topic, description, agendaMode, discussionMode, agendasByTopic, discussionByTopic]);
 
   function syncParticipantFields(newCount: number) {
     setParticipantUserIds((prev) => {
@@ -521,8 +842,28 @@ export default function CreateMeeting() {
   }
 
   function setParticipantUserId(idx: number, value: string) {
+    const duplicateExists = participantUserIds.some((selectedId, selectedIdx) => {
+      return selectedIdx !== idx && selectedId === value;
+    });
+
+    if (duplicateExists) {
+      setParticipantMsg("This member is already selected.");
+      return;
+    }
+
+    setParticipantMsg(null);
     setParticipantUserIds((prev) => prev.map((p, i) => (i === idx ? value : p)));
   }
+
+  useEffect(() => {
+    const currentCount = Number(participantCount) || 1;
+    const clampedCount = Math.min(Math.max(currentCount, 1), maxParticipantCount);
+
+    if (clampedCount !== currentCount) {
+      setParticipantCount(String(clampedCount));
+      syncParticipantFields(clampedCount);
+    }
+  }, [maxParticipantCount, participantCount]);
 
   function addActionRow() {
     setActionItems((rows) => [...rows, { task: "", owner: "", dueChoice: "" }]);
@@ -553,7 +894,9 @@ export default function CreateMeeting() {
 
   const notesFinal = useMemo(() => {
     const parts: string[] = [];
-    parts.push(`Meeting Type: ${meetingType || "-"}`);
+    parts.push(`Meeting Type: ${meetingTypeLabel || "-"}`);
+    parts.push(`Meeting Category: ${meetingCategory || "-"}`);
+    parts.push(`Meeting Domain: ${meetingDomain || "-"}`);
     parts.push(`Topic: ${topic || "-"}`);
     parts.push(`Location: ${locationFinal || "-"}`);
     const participantsWithRole = participantIdsFinal
@@ -590,7 +933,19 @@ export default function CreateMeeting() {
     if (actions.length) parts.push(`Action Items:\n${actions.join("\n")}`);
 
     return parts.join("\n\n").trim();
-  }, [meetingType, topic, locationFinal, participantIdsFinal, orgMembers, agenda, discussionPoints, decisions, actionItems]);
+  }, [
+    meetingTypeLabel,
+    meetingCategory,
+    meetingDomain,
+    topic,
+    locationFinal,
+    participantIdsFinal,
+    orgMembers,
+    agenda,
+    discussionPoints,
+    decisions,
+    actionItems,
+  ]);
 
   async function onCreate() {
     setLoading(true);
@@ -601,19 +956,31 @@ export default function CreateMeeting() {
         throw new Error("Select at least one member for private meeting");
       }
 
-      const res = await api.post("/meetings", {
-        title: title.trim(),
-        description: description.trim(),
-        visibility,
-        dateTime: isoDateTime,
-        participantIds: visibility === "PRIVATE" ? participantIdsFinal : undefined,
-        notes: notesFinal || undefined,
-      });
+      if (isEditMode && editMeetingId) {
+        const res = await api.patch(`/meetings/${editMeetingId}`, {
+          title: title.trim(),
+          description: description.trim(),
+          visibility,
+          dateTime: isoDateTime,
+          notes: notesFinal || undefined,
+        });
+        const updatedId = res.data?.meeting?.id ?? editMeetingId;
+        nav(`/meetings/${updatedId}`);
+      } else {
+        const res = await api.post("/meetings", {
+          title: title.trim(),
+          description: description.trim(),
+          visibility,
+          dateTime: isoDateTime,
+          participantIds: visibility === "PRIVATE" ? participantIdsFinal : undefined,
+          notes: notesFinal || undefined,
+        });
 
-      const createdId = res.data?.meeting?.id ?? res.data?.id;
-      nav(createdId ? `/meetings/${createdId}` : "/meetings");
+        const createdId = res.data?.meeting?.id ?? res.data?.id;
+        nav(createdId ? `/meetings/${createdId}` : "/meetings");
+      }
     } catch (e: any) {
-      setMsg(e?.response?.data?.message ?? e?.message ?? "Create failed");
+      setMsg(e?.response?.data?.message ?? e?.message ?? (isEditMode ? "Update failed" : "Create failed"));
     } finally {
       setLoading(false);
     }
@@ -628,7 +995,7 @@ export default function CreateMeeting() {
     <div className="grid place-items-center px-3 py-8 sm:px-4 sm:py-10">
       <Card className="w-full max-w-5xl border-border/70 bg-white/85 shadow-lg backdrop-blur-sm dark:bg-slate-900/70">
         <CardHeader>
-          <CardTitle className="text-2xl tracking-tight">Create MOM</CardTitle>
+          <CardTitle className="text-2xl tracking-tight">{isEditMode ? "Edit Meeting" : "Create MOM"}</CardTitle>
           <p className="mt-1 text-sm text-muted-foreground">
             Offline smart suggestions (AI-like) + clean MOM notes → Generate minutes + PDF.
           </p>
@@ -646,7 +1013,9 @@ export default function CreateMeeting() {
               />
               {!!title.trim() && (
                 <div className="flex flex-wrap gap-2 pt-1">
-                  <Badge variant="secondary">Auto Type: {meetingType}</Badge>
+                  <Badge variant="secondary">Meeting Type: {meetingTypeLabel}</Badge>
+                  <Badge variant="secondary">Category: {meetingCategory}</Badge>
+                  <Badge variant="secondary">Domain: {meetingDomain}</Badge>
                   <Button
                     type="button"
                     variant="outline"
@@ -669,6 +1038,44 @@ export default function CreateMeeting() {
                 <SelectContent>
                   <SelectItem value="PRIVATE">Private</SelectItem>
                   <SelectItem value="PUBLIC_ORG">Org</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Meeting Type</Label>
+              <Select value={meetingTypeLabel} onValueChange={setMeetingTypeLabel}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select meeting type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {meetingTypeOptions.map((x) => (
+                    <SelectItem key={x} value={x}>
+                      {x}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Meeting Category</Label>
+              <Select
+                value={meetingCategory}
+                onValueChange={(v) =>
+                  setMeetingCategory(v as "Formal" | "Operational" | "Strategic" | "Informal")
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select meeting category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Formal">Formal</SelectItem>
+                  <SelectItem value="Operational">Operational</SelectItem>
+                  <SelectItem value="Strategic">Strategic</SelectItem>
+                  <SelectItem value="Informal">Informal</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -738,12 +1145,28 @@ export default function CreateMeeting() {
                 </Select>
               </div>
 
-              <Input
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                readOnly={descriptionMode === "AUTO"}
-                placeholder="Short description"
-              />
+              {descriptionMode === "AUTO" ? (
+                <Select value={description} onValueChange={(v) => setDescription(v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pick suggested description" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(descriptionSuggestions.length > 0 ? descriptionSuggestions : [description])
+                      .filter(Boolean)
+                      .map((x) => (
+                        <SelectItem key={x} value={x}>
+                          {x}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Short description"
+                />
+              )}
 
               {descriptionMode === "AUTO" && (
                 <p className="text-xs text-muted-foreground">
@@ -861,15 +1284,17 @@ export default function CreateMeeting() {
                 <Select
                   value={participantCount}
                   onValueChange={(v) => {
-                    setParticipantCount(v);
-                    syncParticipantFields(Number(v));
+                    const nextCount = Math.min(Number(v), maxParticipantCount);
+                    setParticipantCount(String(nextCount));
+                    syncParticipantFields(nextCount);
+                    setParticipantMsg(null);
                   }}
                 >
                   <SelectTrigger className="w-full sm:w-[120px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {PARTICIPANT_COUNT.map((c) => (
+                    {participantCountOptions.map((c) => (
                       <SelectItem key={c} value={c}>
                         {c}
                       </SelectItem>
@@ -879,8 +1304,8 @@ export default function CreateMeeting() {
               </div>
             </div>
 
-            <div className="rounded-md border">
-              <Table>
+            <div className="overflow-x-auto rounded-md border">
+              <Table className="min-w-[620px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Member</TableHead>
@@ -903,7 +1328,14 @@ export default function CreateMeeting() {
                             </SelectTrigger>
                             <SelectContent>
                               {orgMembers.map((m) => (
-                                <SelectItem key={m.id} value={m.id}>
+                                <SelectItem
+                                  key={m.id}
+                                  value={m.id}
+                                  disabled={participantUserIds.some(
+                                    (selectedId, selectedIdx) =>
+                                      selectedIdx !== idx && selectedId === m.id
+                                  )}
+                                >
                                   {m.name} ({m.email})
                                 </SelectItem>
                               ))}
@@ -982,7 +1414,7 @@ export default function CreateMeeting() {
 
           {/* Decisions */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <Label>Decisions</Label>
               <Button type="button" variant="outline" onClick={addDecisionRow}>
                 + Add Decision
@@ -1038,15 +1470,15 @@ export default function CreateMeeting() {
 
           {/* Action Items */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <Label>Action Items</Label>
               <Button type="button" variant="outline" onClick={addActionRow}>
                 + Add Row
               </Button>
             </div>
 
-            <div className="rounded-md border">
-              <Table>
+            <div className="overflow-x-auto rounded-md border">
+              <Table className="min-w-[900px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[45%]">Task</TableHead>
@@ -1137,6 +1569,10 @@ export default function CreateMeeting() {
                 </TableBody>
               </Table>
             </div>
+
+            {participantMsg && (
+              <div className="text-sm text-red-600">{participantMsg}</div>
+            )}
           </div>
 
           {/* Preview */}
@@ -1147,11 +1583,11 @@ export default function CreateMeeting() {
 
           {msg && <div className="text-sm text-red-600">{msg}</div>}
 
-          <div className="flex gap-2">
-            <Button onClick={onCreate} disabled={loading || !title.trim() || !isoDateTime}>
-              {loading ? "Creating..." : "Create Meeting"}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row">
+            <Button className="w-full sm:w-auto" onClick={onCreate} disabled={loading || !title.trim() || !isoDateTime}>
+              {loading ? (isEditMode ? "Saving..." : "Creating...") : isEditMode ? "Save Changes" : "Create Meeting"}
             </Button>
-            <Button variant="outline" onClick={() => nav("/meetings")}>
+            <Button className="w-full sm:w-auto" variant="outline" onClick={() => nav("/meetings")}>
               Cancel
             </Button>
           </div>

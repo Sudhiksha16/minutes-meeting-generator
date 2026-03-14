@@ -5,6 +5,7 @@ import Login from "../features/auth/Login";
 import ForgotPassword from "../features/auth/ForgotPassword";
 import OrgSetup from "../features/auth/OrgSetup";
 import DashboardHome from "../features/dashboard/DashboardHome";
+import OrgMembers from "../features/dashboard/OrgMembers";
 
 import MeetingsList from "../features/meetings/MeetingsList";
 import CreateMeeting from "../features/meetings/CreateMeeting";
@@ -90,7 +91,15 @@ export const router = createBrowserRouter([
             <AdminRequests />
           </RequireAdmin>
         ),
-      }
+      },
+      {
+        path: "/admin/members",
+        element: (
+          <RequireAdmin>
+            <OrgMembers />
+          </RequireAdmin>
+        ),
+      },
     ],
   },
 ]);

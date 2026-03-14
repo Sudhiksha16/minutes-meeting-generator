@@ -13,6 +13,11 @@ type AiOutput = {
   tags: string[];
   isSensitive: boolean;
   sensitivityReason: string | null;
+  quality?: {
+    score: number;
+    warnings: string[];
+    needsReview: boolean;
+  };
   fallback?: boolean;
   note?: string;
 };
@@ -109,6 +114,43 @@ function isSensitiveText(text: string): { isSensitive: boolean; reason: string |
   };
 }
 
+function buildQualityReport(data: Pick<AiOutput, "decisions" | "actionItems">) {
+  const warnings: string[] = [];
+
+  if (!Array.isArray(data.decisions) || data.decisions.length === 0) {
+    warnings.push("No decisions detected.");
+  }
+
+  const actionItems = Array.isArray(data.actionItems) ? data.actionItems : [];
+  if (actionItems.length === 0) {
+    warnings.push("No action items detected.");
+  }
+
+  const missingAssignee = actionItems.filter((a) => !String(a.assignee ?? "").trim()).length;
+  const missingDueDate = actionItems.filter((a) => !String(a.dueDate ?? "").trim()).length;
+  const missingTask = actionItems.filter((a) => !String(a.task ?? "").trim()).length;
+
+  if (missingTask > 0) {
+    warnings.push(`${missingTask} action item(s) have no clear task.`);
+  }
+  if (missingAssignee > 0) {
+    warnings.push(`${missingAssignee} action item(s) are missing assignee.`);
+  }
+  if (missingDueDate > 0) {
+    warnings.push(`${missingDueDate} action item(s) are missing due date.`);
+  }
+
+  let score = 100;
+  score -= warnings.length * 15;
+  score = Math.max(0, Math.min(100, score));
+
+  return {
+    score,
+    warnings,
+    needsReview: warnings.length > 0,
+  };
+}
+
 /**
  * Removes BOTH "Decisions:" and "Action Items:" sections from notes to avoid duplication in Key Discussion.
  * IMPORTANT: This removes those sections anywhere in the text, safely, without deleting other content.
@@ -171,6 +213,7 @@ ${notes}
 
     // ✅ Hard guarantee: remove "Attendees:" even if AI adds it
     data.mom = stripAttendeesLine(data.mom);
+    data.quality = buildQualityReport(data);
 
     return res.json({ ai: data });
   } catch (_err: unknown) {
@@ -226,6 +269,7 @@ ${
       tags,
       isSensitive: sens.isSensitive,
       sensitivityReason: sens.reason,
+      quality: buildQualityReport({ decisions, actionItems }),
       fallback: true,
       note: "Smart fallback mode activated (OpenAI unavailable / quota / parse error).",
     };

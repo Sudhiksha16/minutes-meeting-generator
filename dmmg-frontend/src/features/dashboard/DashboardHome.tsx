@@ -141,6 +141,17 @@ export default function DashboardHome() {
             </CardContent>
           </Card>
         )}
+
+        {isAdmin && (
+          <Card className="group cursor-pointer border-border/70 bg-white/85 transition-all hover:-translate-y-0.5 hover:bg-white/95 hover:shadow-lg dark:bg-slate-900/65 dark:hover:bg-slate-900/80" onClick={() => nav("/admin/members")}>
+            <CardHeader>
+              <CardTitle className="text-base">View Org Members</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-slate-600 dark:text-slate-300">
+              See Member details, Designation and Meeting Details.
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-3">
@@ -152,6 +163,12 @@ export default function DashboardHome() {
         {isAdmin && (
           <Button variant="outline" onClick={() => nav("/admin/requests")}>
             View Join Requests
+          </Button>
+        )}
+
+        {isAdmin && (
+          <Button variant="outline" onClick={() => nav("/admin/members")}>
+            View Org Members
           </Button>
         )}
       </div>

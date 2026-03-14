@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Moon, Sun } from "lucide-react";
+import { ArrowLeft, Moon, Sun } from "lucide-react";
 
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
@@ -21,6 +21,7 @@ export default function AppShell() {
   const { pathname } = useLocation();
   const isAuthenticated = !!getSessionToken();
   const isAuthPage = pathname === "/" || pathname.startsWith("/auth");
+  const showBackButton = isAuthenticated && !isAuthPage && pathname !== "/dashboard";
 
   const [themeMode, setThemeMode] = useState<ThemeMode>("light");
   const [leaveOrgOpen, setLeaveOrgOpen] = useState(false);
@@ -48,7 +49,7 @@ export default function AppShell() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-cyan-50/70 via-background to-amber-50/30">
       <header className="sticky top-0 z-40 border-b border-white/40 bg-background/75 backdrop-blur-md">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-3 py-2.5 sm:px-4 sm:py-3">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-3 py-2.5 sm:flex-nowrap sm:px-4 sm:py-3">
           <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <div
               className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 ring-1 ring-primary/20 select-none sm:h-11 sm:w-11"
@@ -71,7 +72,7 @@ export default function AppShell() {
           </div>
 
           {isAuthenticated ? (
-            <div className="flex items-center gap-2">
+            <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-nowrap">
               <Button
                 type="button"
                 variant="outline"
@@ -88,7 +89,8 @@ export default function AppShell() {
                 className="h-9 shrink-0 rounded-xl px-3 text-xs sm:text-sm"
                 onClick={() => setLeaveOrgOpen(true)}
               >
-                Leave Org
+                <span className="sm:hidden">Leave</span>
+                <span className="hidden sm:inline">Leave Org</span>
               </Button>
 
               <Button
@@ -99,7 +101,7 @@ export default function AppShell() {
                   navigate("/", { replace: true });
                 }}
               >
-                Logout
+                <span>Logout</span>
               </Button>
             </div>
           ) : (
@@ -146,6 +148,20 @@ export default function AppShell() {
           </div>
         ) : (
           <Card className="hero-fade-up rounded-2xl border-white/40 bg-background/75 shadow-lg backdrop-blur-sm">
+            {showBackButton && (
+              <div className="border-b border-border/60 px-4 pt-4 md:px-6">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="mb-3 inline-flex items-center gap-2 rounded-xl px-2 text-sm"
+                  onClick={() => navigate(-1)}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back
+                </Button>
+              </div>
+            )}
             <div className="p-4 md:p-6">
               <Outlet />
             </div>

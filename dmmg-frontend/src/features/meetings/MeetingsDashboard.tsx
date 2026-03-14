@@ -100,7 +100,7 @@ export default function MeetingsDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Meetings</h1>
           <p className="text-sm text-muted-foreground">
@@ -157,7 +157,7 @@ export default function MeetingsDashboard() {
                   onClick={() => nav(`/meetings/${m.id}`)}
                   className="w-full text-left py-4 px-2 rounded-md transition hover:bg-muted/40"
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="space-y-1">
                       <div className="font-medium">{m.title}</div>
 
@@ -171,7 +171,7 @@ export default function MeetingsDashboard() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                       <Badge variant="secondary">
                         {m.visibility === "PUBLIC_ORG" ? "Org" : "Private"}
                       </Badge>

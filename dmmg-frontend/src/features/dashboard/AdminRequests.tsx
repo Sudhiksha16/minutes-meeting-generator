@@ -121,7 +121,8 @@ export default function AdminRequests() {
           ) : pendingUsers.length === 0 ? (
             <div className="text-sm text-muted-foreground">No pending requests.</div>
           ) : (
-            <Table>
+            <div className="overflow-x-auto">
+              <Table className="min-w-[760px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
@@ -133,7 +134,7 @@ export default function AdminRequests() {
               </TableHeader>
 
               <TableBody>
-                {pendingUsers.map((u) => (
+              {pendingUsers.map((u) => (
                   <TableRow key={u.id}>
                     <TableCell className="font-medium">{u.name}</TableCell>
                     <TableCell className="break-all text-muted-foreground">{u.email}</TableCell>
@@ -154,9 +155,10 @@ export default function AdminRequests() {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+              ))}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
