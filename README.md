@@ -92,3 +92,10 @@ https://minutes-meeting-generator.vercel.app/
 
 - The frontend currently includes its default Vite README in `dmmg-frontend/README.md`; this root README is the main project documentation.
 - Do not commit real secrets in `.env` files. Use local-only values and rotate any exposed keys immediately.
+
+## License
+
+This project is proprietary and confidential.  
+All rights reserved.
+
+No part of this codebase may be copied, modified, distributed, or used without explicit written permission from the owner.
