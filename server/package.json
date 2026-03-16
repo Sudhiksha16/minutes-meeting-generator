@@ -7,7 +7,8 @@
     "build": "tsc",
     "start": "node dist/app.js",
     "prisma:generate": "prisma generate",
-    "migrate:deploy": "prisma migrate deploy"
+    "migrate:deploy": "prisma migrate deploy",
+    "data:copy": "node scripts/copy-data.js"
   },
   "keywords": [],
   "author": "",
