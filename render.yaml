@@ -1,0 +1,31 @@
+databases:
+  - name: dmmg-postgres
+    plan: free
+    databaseName: dmmg
+    user: dmmg
+
+services:
+  - type: web
+    name: dmmg-server
+    env: node
+    rootDir: server
+    plan: free
+    healthCheckPath: /
+    buildCommand: npm ci && npm run prisma:generate && npm run build
+    preDeployCommand: npm run migrate:deploy
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: DATABASE_URL
+        fromDatabase:
+          name: dmmg-postgres
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: CORS_ORIGIN
+        sync: false

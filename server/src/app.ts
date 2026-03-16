@@ -11,9 +11,25 @@ import orgRoutes from "./routes/org.routes";
 dotenv.config();
 
 const app = express();
+const allowedOrigins = (process.env.CORS_ORIGIN ?? "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const corsOrigin =
+  allowedOrigins.length === 0
+    ? true
+    : (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+          return;
+        }
+
+        callback(new Error("Origin not allowed by CORS"));
+      };
 
 app.use(
   cors({
+    origin: corsOrigin,
     exposedHeaders: ["Content-Disposition"],
   })
 );
@@ -30,7 +46,7 @@ app.use("/meetings", meetingRoutes);
 app.use("/ai", aiRoutes);
 app.use("/ai", aiSuggestRoutes);
 
-const PORT = 5000;
+const PORT = Number(process.env.PORT) || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
