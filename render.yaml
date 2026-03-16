@@ -12,8 +12,7 @@ services:
     plan: free
     healthCheckPath: /
     buildCommand: npm ci && npm run prisma:generate && npm run build
-    preDeployCommand: npm run migrate:deploy
-    startCommand: npm run start
+    startCommand: npm run migrate:deploy && npm run start
     envVars:
       - key: NODE_VERSION
         value: 22
