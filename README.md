@@ -36,85 +36,6 @@ minutes-meeting-generator/
 |- render.yaml      # Render blueprint
 ```
 
-## Getting Started
-
-### 1. Clone the repository
-
-```bash
-git clone <your-repo-url>
-cd minutes-meeting-generator
-```
-
-### 2. Install dependencies
-
-Frontend:
-
-```bash
-cd dmmg-frontend
-npm install
-```
-
-Backend:
-
-```bash
-cd server
-npm install
-```
-
-### 3. Configure environment variables
-
-Backend `server/.env`:
-
-```env
-DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DB_NAME
-JWT_SECRET=your_jwt_secret
-OPENAI_API_KEY=your_openai_api_key
-OPENAI_MODEL=gpt-4o-mini
-CORS_ORIGIN=http://localhost:5173
-PORT=5000
-```
-
-Frontend `dmmg-frontend/.env`:
-
-```env
-VITE_API_BASE_URL=http://localhost:5000
-```
-
-### 4. Prepare the database
-
-Generate the Prisma client:
-
-```bash
-cd server
-npm run prisma:generate
-```
-
-Apply migrations:
-
-```bash
-npx prisma migrate deploy
-```
-
-For local development, `npx prisma migrate dev` also works if you want to create or apply migrations interactively.
-
-### 5. Start the backend
-
-```bash
-cd server
-npm run dev
-```
-
-The API runs on `http://localhost:5000` by default.
-
-### 6. Start the frontend
-
-```bash
-cd dmmg-frontend
-npm run dev
-```
-
-The frontend runs on `http://localhost:5173`.
-
 ## Available Scripts
 
 ### Frontend
@@ -162,6 +83,10 @@ Current deployment setup in this repo supports:
 - Frontend on Vercel
 - Backend on Render or Railway
 - PostgreSQL on Render or Railway
+
+## Live Demo Link
+
+https://minutes-meeting-generator.vercel.app/
 
 ## Notes
 
